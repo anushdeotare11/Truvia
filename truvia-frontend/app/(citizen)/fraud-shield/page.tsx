@@ -334,7 +334,7 @@ export default function CitizenDashboard() {
     if (!currentReport) return;
     setIsDownloadingPdf(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
       const response = await fetch(`${apiUrl}/reports/${currentReport.id}/pdf`, {
         headers: {
           "Authorization": `Bearer ${apiClient.getAccessToken()}`

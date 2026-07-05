@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
 
 interface FetchOptions extends RequestInit {
   params?: Record<string, string>;
@@ -105,9 +105,9 @@ class ApiClient {
       });
 
       if (!refreshResponse.ok) {
-        // Refresh failed, redirect to login
+        // Refresh failed, redirect to login unless already on login/register pages
         this.setAccessToken(null);
-        if (typeof window !== "undefined") {
+        if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login") && !window.location.pathname.startsWith("/register")) {
           window.location.href = "/login?expired=true";
         }
         throw new Error("Session expired. Please log in again.");

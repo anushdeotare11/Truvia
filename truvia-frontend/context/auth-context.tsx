@@ -18,7 +18,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  register: (name: string, email: string, password: str, phone?: string) => Promise<void>;
+  register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
   error: string | null;
   clearError: () => void;
 }
@@ -27,13 +27,28 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     // Check if user is already authenticated on mount
     const checkAuth = async () => {
+      const isAuthPage = typeof window !== "undefined" && 
+        (window.location.pathname.startsWith("/login") || window.location.pathname.startsWith("/register"));
+      
+      if (isAuthPage) {
+        // Silently verify session in the background without blocking the UI
+        try {
+          const currentUser = await apiClient.get<User>("/auth/me");
+          setUser(currentUser);
+        } catch {
+          setUser(null);
+        }
+        return;
+      }
+
+      setIsLoading(true);
       try {
         const currentUser = await apiClient.get<User>("/auth/me");
         setUser(currentUser);
@@ -47,7 +62,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     checkAuth();
   }, []);
 
-  const login = async (email: string, password: str) => {
+  const login = async (email: string, password: string) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -90,7 +105,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const register = async (name: string, email: string, password: str, phone?: string) => {
+  const register = async (name: string, email: string, password: string, phone?: string) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -136,4 +151,4 @@ export const useAuth = () => {
   }
   return context;
 };
-type str = string;
+
