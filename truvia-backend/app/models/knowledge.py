@@ -1,7 +1,7 @@
 import uuid
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Integer
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.data.postgres_client import Base, is_sqlite

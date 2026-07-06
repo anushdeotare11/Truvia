@@ -5,6 +5,7 @@ from sqlalchemy.orm import DeclarativeBase
 from app.config import settings
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.postgresql import JSONB, INET
+from sqlalchemy import UUID
 
 @compiles(JSONB, "sqlite")
 def compile_jsonb_sqlite(element, compiler, **kw):
@@ -13,6 +14,10 @@ def compile_jsonb_sqlite(element, compiler, **kw):
 @compiles(INET, "sqlite")
 def compile_inet_sqlite(element, compiler, **kw):
     return "VARCHAR(50)"
+
+@compiles(UUID, "sqlite")
+def compile_uuid_sqlite(element, compiler, **kw):
+    return "CHAR(32)"
 
 logger = logging.getLogger("truvia.data.postgres")
 

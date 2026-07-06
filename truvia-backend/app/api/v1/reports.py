@@ -95,7 +95,7 @@ async def submit_report(
     except Exception as e:
         logger.error(f"Failed to queue processing job: {str(e)}. Running synchronously instead.")
         # Fallback to synchronous run if Redis queue is down
-        await input_processor_agent.process_report(str(new_report.id))
+        await run_pipeline(str(new_report.id))
         await db.refresh(new_report)
 
     # Return report structure
