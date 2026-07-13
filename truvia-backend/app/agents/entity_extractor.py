@@ -19,6 +19,10 @@ class EntityExtractorAgent:
         Main entry point for Agent 4. Analyzes report text, extracts unique entities,
         updates global ledger, and derives pairwise connections in SQL.
         """
+        import uuid
+        if isinstance(report_id, str):
+            report_id = uuid.UUID(report_id)
+
         async with AsyncSessionLocal() as session:
             try:
                 # 1. Fetch Report

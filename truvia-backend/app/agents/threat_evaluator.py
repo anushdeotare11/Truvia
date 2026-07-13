@@ -1,7 +1,8 @@
 import json
 import logging
+import asyncio
 from sqlalchemy import select, update
-from anthropic import Anthropic
+import google.generativeai as genai
 from app.config import settings
 from app.data.postgres_client import AsyncSessionLocal
 from app.models.report import Report, ThreatScore
@@ -10,19 +11,24 @@ logger = logging.getLogger("truvia.agents.threat_evaluator")
 
 class ThreatEvaluatorAgent:
     def __init__(self):
-        self.api_key = settings.ANTHROPIC_API_KEY
-        if self.api_key and "your-anthropic-key" not in self.api_key and len(self.api_key) > 10:
-            self.client = Anthropic(api_key=self.api_key)
-            logger.info("Initialized ThreatEvaluatorAgent with Anthropic API client")
+        self.api_key = settings.GOOGLE_API_KEY
+        if self.api_key and "your-google-key" not in self.api_key and len(self.api_key) > 10:
+            genai.configure(api_key=self.api_key)
+            self.client = genai.GenerativeModel("gemini-2.5-flash")
+            logger.info("Initialized ThreatEvaluatorAgent with Google Gemini API client")
         else:
             self.client = None
-            logger.warning("No Anthropic API key configured. Running ThreatEvaluatorAgent in degraded mock mode.")
+            logger.warning("No Google API key configured. Running ThreatEvaluatorAgent in degraded mock mode.")
 
     async def evaluate_threat(self, report_id: str) -> dict:
         """
         Main entry point for Agent 2. Fetches the processed report text,
         evaluates scam indicators, calculates risk score, and records it in the database.
         """
+        import uuid
+        if isinstance(report_id, str):
+            report_id = uuid.UUID(report_id)
+
         async with AsyncSessionLocal() as session:
             try:
                 # 1. Fetch Report
@@ -105,13 +111,13 @@ class ThreatEvaluatorAgent:
                     "'threat_score', 'severity_band', 'scam_category', 'confidence_score', 'reasoning'."
                 )
 
-                response = self.client.messages.create(
-                    model="claude-3-5-sonnet-20241022",
-                    max_tokens=1000,
-                    messages=[{"role": "user", "content": prompt}]
+                response = await asyncio.to_thread(
+                    self.client.generate_content,
+                    prompt,
+                    generation_config={"response_mime_type": "application/json"}
                 )
 
-                res_content = response.content[0].text.strip()
+                res_content = response.text.strip()
                 if "```json" in res_content:
                     res_content = res_content.split("```json")[1].split("```")[0].strip()
                 elif "```" in res_content:
@@ -127,7 +133,7 @@ class ThreatEvaluatorAgent:
                     False
                 )
             except Exception as e:
-                logger.error(f"Claude threat evaluation failed: {str(e)}. Falling back to local rule-engine.")
+                logger.error(f"Gemini threat evaluation failed: {str(e)}. Falling back to local rule-engine.")
 
         # Local rule engine fallback
         text_lower = text.lower()

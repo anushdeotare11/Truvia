@@ -18,6 +18,11 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from pydantic import BaseModel
+from uuid import UUID
+
+class CaseAssignmentPayload(BaseModel):
+    officer_id: UUID
 
 router = APIRouter()
 logger = logging.getLogger("truvia.api.cases")
@@ -78,7 +83,7 @@ async def get_dashboard_stats(
         logger.error(f"Failed to compile dashboard stats: {str(e)}")
         raise HTTPException(status_code=500, detail="Stats compilation error")
 
-@router.get("/", status_code=status.HTTP_200_OK)
+@router.get("", status_code=status.HTTP_200_OK)
 async def list_cases(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(deps.get_current_user)
@@ -183,7 +188,7 @@ async def get_case_details(
 @router.post("/{case_id}/assign", status_code=status.HTTP_200_OK)
 async def assign_case(
     case_id: str,
-    payload: Dict[str, str], # {"officer_id": "uuid"}
+    payload: CaseAssignmentPayload,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(deps.get_current_user)
 ):
@@ -192,9 +197,9 @@ async def assign_case(
     """
     try:
         case_uuid = uuid.UUID(case_id)
-        officer_uuid = uuid.UUID(payload.get("officer_id"))
+        officer_uuid = payload.officer_id
     except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid Case or Officer UUID format")
+        raise HTTPException(status_code=400, detail="Invalid Case UUID format")
 
     # Fetch Case
     case_result = await db.execute(select(Case).where(Case.id == case_uuid))

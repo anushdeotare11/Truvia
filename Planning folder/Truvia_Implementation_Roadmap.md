@@ -116,7 +116,7 @@ This roadmap's task tables (§8) reference these paths directly so both develope
 
 - **Living documents, not a Day-18 scramble:** the PRD, TRD, App Flow, Design Brief, Backend Schema, and this Roadmap are the documentation — no separate "documentation phase" exists in the schedule because none is needed if these stay current. Any deviation from a documented contract (an API shape change, a new table, a schema tweak) gets a one-line edit to the relevant doc in the same PR that makes the change, not a "we'll write it up later."
 - **Auto-generated API docs:** FastAPI's OpenAPI/Swagger UI (free, from `response_model` typing per §3.1) serves as the always-current API reference — judges or teammates can hit `/docs` on the deployed backend and see the real, live contract, which is itself a small "technical depth" signal (PRD §18).
-- **README per repo:** each of `truvia-backend`/`truvia-frontend` gets a README covering: local setup (env vars, `docker-compose up`, migration command), how to run tests, how to run the app — written on Day 1 as part of scaffolding, not retrofitted.
+- **README per repo:** each of `truvia-backend`/`truvia-frontend` gets a README covering: local setup (env vars, local DB initialization, migration command), how to run tests, how to run the app — written on Day 1 as part of scaffolding, not retrofitted.
 - **Inline code comments:** reserved for *why*, never *what* — a comment explaining why Agent 2 merges rule-based and LLM signals with a specific weighting is valuable; a comment restating `# increment counter` is noise and is not written.
 - **Demo narrative doc:** a living one-page doc (owned jointly, updated as features land) tracking the exact demo script beats from PRD Appendix B — this becomes the literal presentation-day script, so it's written incrementally as each piece becomes demoable, not authored cold on Day 18.
 
@@ -184,7 +184,7 @@ Each day's table lists every task with **Owner, Estimated Hours, Dependencies, O
 | Task | Owner | Hrs | Dependencies | Output | Priority |
 |---|---|---|---|---|---|
 | Finalize Postgres schema (all 18 tables per Backend Schema doc); write Alembic initial migration | Dev A | 5 | Backend Schema doc | `alembic/versions/0001_initial.py`, migrated local DB | P0 |
-| Provision Postgres (local docker-compose + cloud dev instance); provision Neo4j Aura Free tier account | Dev A | 2 | — | Running DB instances, connection strings in `.env.example` | P0 |
+| Provision Postgres (local installation + cloud dev instance); provision Neo4j Aura Free tier account | Dev A | 2 | — | Running DB instances, connection strings in `.env.example` | P0 |
 | Scaffold `truvia-backend` repo: folder structure (TRD §5.2), `main.py`, `config.py`, CI pipeline (lint+test on PR) | Dev A | 2 | Repo created | CI green on empty scaffold | P0 |
 | Build `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, JWT issuance (`core/security.py`) | Dev A | 3 | Users table migrated | Working auth endpoints, testable via curl | P0 |
 | Scaffold `truvia-frontend` repo: Next.js App Router, route groups `(citizen)/(officer)/(intelligence)`, CI pipeline | Dev B | 2 | Repo created | CI green on empty scaffold | P0 |
@@ -506,7 +506,7 @@ Given 18 days and 2 developers, **manual, scenario-driven testing is the primary
 
 | Step | When | Detail |
 |---|---|---|
-| Local dev environment | Day 1 | `docker-compose up` — Postgres, Redis; Neo4j via Aura Free tier (cloud, even in "local" dev, since Aura has no convenient local equivalent) |
+| Local dev environment | Day 1 | Local system services — Postgres, Redis; Neo4j via Aura Free tier (cloud, even in "local" dev, since Aura has no convenient local equivalent) |
 | Continuous deploy to a shared demo environment | From Day 2 onward | Every merge to `main` auto-deploys (backend to managed host, frontend to Vercel) — per TRD §10.1; this is what makes the Day 4/8/11 milestone demos and the Definition of Done's "exercised in the deployed environment" gate possible |
 | Production environment provisioning | Day 17 | Separate from the rolling demo environment — a clean production deploy with its own secrets, its own seeded dataset, hardened per §8's Day 17 tasks |
 | Final production freeze | End of Day 17 rehearsal | No further feature changes to production after rehearsal passes; Day 18 touches production only for verified bug fixes |

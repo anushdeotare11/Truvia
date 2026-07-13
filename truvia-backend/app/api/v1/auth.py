@@ -7,6 +7,7 @@ from app.models.user import User, Session as UserSession
 from app.schemas.auth import UserRegister, UserLogin, Token, UserOut
 from app.core import security
 from app.api import deps
+from app.config import settings
 from datetime import datetime, timedelta
 import hashlib
 import logging

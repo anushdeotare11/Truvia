@@ -12,6 +12,10 @@ class ThreatIntelAgent:
         Main entry point for Agent 5. Links Postgres entities and report details
         into Neo4j Graph database for cluster analysis.
         """
+        import uuid
+        if isinstance(report_id, str):
+            report_id = uuid.UUID(report_id)
+
         async with AsyncSessionLocal() as session:
             try:
                 # 1. Fetch Report

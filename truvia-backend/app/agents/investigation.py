@@ -1,29 +1,35 @@
 import logging
 import json
+import asyncio
 from sqlalchemy import select
 from app.data.postgres_client import AsyncSessionLocal
 from app.models.case import Case, CaseReport
 from app.models.report import Report, Entity, ReportEntity
-from anthropic import Anthropic
+import google.generativeai as genai
 from app.config import settings
 
 logger = logging.getLogger("truvia.agents.investigation")
 
 class InvestigationAgent:
     def __init__(self):
-        self.api_key = settings.ANTHROPIC_API_KEY
-        if self.api_key and "your-anthropic-key" not in self.api_key and len(self.api_key) > 10:
-            self.client = Anthropic(api_key=self.api_key)
-            logger.info("Initialized InvestigationAgent with Anthropic API")
+        self.api_key = settings.GOOGLE_API_KEY
+        if self.api_key and "your-google-key" not in self.api_key and len(self.api_key) > 10:
+            genai.configure(api_key=self.api_key)
+            self.client = genai.GenerativeModel("gemini-1.5-flash")
+            logger.info("Initialized InvestigationAgent with Google Gemini API")
         else:
             self.client = None
-            logger.warning("No API Key configured. Running InvestigationAgent in degraded local mode.")
+            logger.warning("No Google API Key configured. Running InvestigationAgent in degraded local mode.")
 
     async def summarize_case(self, case_id: str) -> dict:
         """
         Main entry point for Agent 6. Summarizes a multi-complaint case,
         extracting primary targets, operating patterns, and loss estimates.
         """
+        import uuid
+        if isinstance(case_id, str):
+            case_id = uuid.UUID(case_id)
+
         async with AsyncSessionLocal() as session:
             try:
                 # 1. Fetch Case
@@ -97,12 +103,12 @@ class InvestigationAgent:
                 "Format output STRICTLY as valid JSON."
             )
 
-            response = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=600,
-                messages=[{"role": "user", "content": prompt}]
+            response = await asyncio.to_thread(
+                self.client.generate_content,
+                prompt,
+                generation_config={"response_mime_type": "application/json"}
             )
-            raw_content = response.content[0].text.strip()
+            raw_content = response.text.strip()
             # Parse json safely
             start_idx = raw_content.find("{")
             end_idx = raw_content.rfind("}")

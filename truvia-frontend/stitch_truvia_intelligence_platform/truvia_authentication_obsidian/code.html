@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Truvia | Secure Authentication</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@450&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-error": "#690005",
+                    "inverse-on-surface": "#303036",
+                    "tertiary-fixed": "#ffe083",
+                    "outline-variant": "#464555",
+                    "on-surface-variant": "#c7c4d7",
+                    "on-error-container": "#ffdad6",
+                    "surface": "#131318",
+                    "on-secondary": "#26276f",
+                    "surface-container-low": "#1b1b20",
+                    "surface-container": "#1f1f25",
+                    "primary": "#c1c1ff",
+                    "on-primary": "#1200a9",
+                    "secondary-container": "#3d3e87",
+                    "on-primary-fixed": "#07006c",
+                    "primary-fixed": "#e1e0ff",
+                    "on-secondary-container": "#adaefe",
+                    "on-tertiary-fixed": "#231b00",
+                    "background": "#131318",
+                    "secondary-fixed": "#e1dfff",
+                    "on-surface": "#e4e1e9",
+                    "on-background": "#e4e1e9",
+                    "secondary-fixed-dim": "#c1c1ff",
+                    "surface-container-highest": "#35343a",
+                    "inverse-surface": "#e4e1e9",
+                    "outline": "#908fa0",
+                    "on-secondary-fixed-variant": "#3d3e87",
+                    "on-primary-container": "#faf7ff",
+                    "surface-dim": "#131318",
+                    "on-primary-fixed-variant": "#2e2bc2",
+                    "tertiary-fixed-dim": "#edc221",
+                    "surface-variant": "#35343a",
+                    "surface-bright": "#39383e",
+                    "on-tertiary-container": "#4e3e00",
+                    "error": "#ffb4ab",
+                    "tertiary": "#edc221",
+                    "secondary": "#c1c1ff",
+                    "surface-tint": "#c1c1ff",
+                    "inverse-primary": "#4849da",
+                    "on-tertiary": "#3c2f00",
+                    "on-secondary-fixed": "#0f0d5a",
+                    "error-container": "#93000a",
+                    "on-tertiary-fixed-variant": "#564500",
+                    "tertiary-container": "#cea700",
+                    "surface-container-high": "#2a292f",
+                    "primary-fixed-dim": "#c1c1ff",
+                    "surface-container-lowest": "#0e0e13",
+                    "primary-container": "#5d5fef"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "stack-md": "16px",
+                    "stack-lg": "32px",
+                    "card-padding": "20px",
+                    "margin-page": "40px",
+                    "unit": "4px",
+                    "stack-sm": "8px",
+                    "gutter": "24px",
+                    "header-height": "64px",
+                    "sidebar-width": "260px",
+                    "container-max": "1600px"
+            },
+            "fontFamily": {
+                    "body-md": ["Manrope"],
+                    "data-lg": ["Manrope"],
+                    "display-lg": ["Manrope"],
+                    "label-md": ["JetBrains Mono"],
+                    "headline-md": ["Manrope"],
+                    "headline-lg-mobile": ["Manrope"],
+                    "headline-lg": ["Manrope"],
+                    "body-lg": ["Manrope"],
+                    "headline-sm": ["Manrope"],
+                    "data-mono": ["JetBrains Mono"]
+            },
+            "fontSize": {
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "data-lg": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "data-mono": ["13px", {"lineHeight": "20px", "fontWeight": "450"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .grid-pattern {
+            background-image: radial-gradient(circle, #908fa0 1px, transparent 1px);
+            background-size: 24px 24px;
+            opacity: 0.03;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .auth-card {
+            background: rgba(31, 31, 37, 0.7);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+        .obsidian-logo-shine {
+            background: linear-gradient(135deg, #c1c1ff 0%, #ffffff 50%, #c1c1ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-md min-h-screen flex flex-col items-center">
+<!-- Subtle Background Shader Overlay -->
+<div class="fixed inset-0 pointer-events-none z-0">
+<div class="absolute inset-0 grid-pattern"></div>
+</div>
+<!-- Main Content Canvas -->
+<main class="flex-grow flex flex-col items-center justify-center w-full max-w-container-max px-gutter relative z-10 py-stack-lg">
+<!-- Brand Identity Container -->
+<div class="mb-stack-lg text-center">
+<h1 class="font-display-lg text-display-lg tracking-tight uppercase flex items-center justify-center gap-unit">
+<span class="material-symbols-outlined text-[40px] text-primary" data-icon="shield_with_house" style="font-variation-settings: 'FILL' 1;">shield_with_house</span>
+<span class="obsidian-logo-shine">TRUVIA</span>
+</h1>
+<p class="font-label-md text-label-md text-on-surface-variant mt-unit tracking-[0.2em]">PREMIER PUBLIC SAFETY NETWORK</p>
+</div>
+<!-- Authentication Card -->
+<div class="auth-card border border-outline-variant w-full max-w-[440px] overflow-hidden rounded-xl">
+<!-- Tabs -->
+<div class="flex border-b border-outline-variant">
+<button class="flex-1 py-stack-md font-label-md text-label-md border-b-2 border-primary text-primary transition-all uppercase tracking-widest" id="tab-login" onclick="switchTab('login')">Login</button>
+<button class="flex-1 py-stack-md font-label-md text-label-md border-b-2 border-transparent text-on-surface-variant hover:text-primary transition-all uppercase tracking-widest" id="tab-signup" onclick="switchTab('signup')">Sign Up</button>
+</div>
+<div class="p-card-padding space-y-stack-md">
+<!-- Role Selector -->
+<div class="flex gap-unit p-unit bg-surface-container-lowest rounded-lg border border-outline-variant/30">
+<button class="flex-1 flex items-center justify-center gap-unit py-stack-sm rounded bg-primary text-on-primary font-body-md transition-all shadow-md" id="role-citizen" onclick="switchRole('citizen')">
+<span class="material-symbols-outlined text-[18px]" data-icon="person">person</span>
+                        Citizen
+                    </button>
+<button class="flex-1 flex items-center justify-center gap-unit py-stack-sm rounded text-on-surface-variant hover:text-on-surface font-body-md transition-all" id="role-agency" onclick="switchRole('agency')">
+<span class="material-symbols-outlined text-[18px]" data-icon="policy">policy</span>
+                        Agency
+                    </button>
+</div>
+<!-- Messaging Section -->
+<div class="bg-secondary-container/20 border-l-4 border-secondary p-stack-sm rounded-r" id="role-message">
+<p class="text-label-md text-on-secondary-container">Standard encryption active for public users. Identity verification required for access.</p>
+</div>
+<!-- Form Section -->
+<form class="space-y-stack-md" id="auth-form">
+<div class="space-y-unit">
+<label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider" id="label-id">Email Address</label>
+<div class="relative">
+<input class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg px-stack-md py-stack-sm focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none text-body-md font-data-mono text-on-surface placeholder-on-surface-variant/30" placeholder="name@example.com" type="text"/>
+<span class="absolute right-stack-md top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[20px]" data-icon="alternate_email">alternate_email</span>
+</div>
+</div>
+<div class="space-y-unit">
+<div class="flex justify-between items-center">
+<label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Password</label>
+<a class="text-label-md text-secondary hover:text-primary transition-colors" href="#">Forgot?</a>
+</div>
+<div class="relative">
+<input class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg px-stack-md py-stack-sm focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none text-body-md font-data-mono text-on-surface placeholder-on-surface-variant/30" placeholder="••••••••" type="password"/>
+<span class="absolute right-stack-md top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[20px]" data-icon="lock">lock</span>
+</div>
+</div>
+<!-- MFA Reminder (Hidden by default, shown for Agency) -->
+<div class="hidden flex items-start gap-stack-sm p-stack-sm bg-primary-container/10 rounded-lg border border-primary/20" id="mfa-reminder">
+<span class="material-symbols-outlined text-primary text-[20px]" data-icon="security_update_good">security_update_good</span>
+<div>
+<p class="text-body-md font-semibold text-primary">Multi-Factor Authentication</p>
+<p class="text-label-md text-on-surface-variant">Agency-issued hardware key or TOTP code required for next step.</p>
+</div>
+</div>
+<button class="w-full bg-primary text-on-primary py-stack-sm rounded-lg font-label-md text-label-md flex items-center justify-center gap-stack-sm hover:brightness-110 transition-all active:scale-[0.98] uppercase tracking-widest shadow-lg shadow-primary/20" type="submit">
+<span class="material-symbols-outlined text-[18px]" data-icon="encrypted">encrypted</span>
+                        Secure Login
+                    </button>
+</form>
+<div class="pt-stack-sm text-center">
+<p class="text-label-md text-on-surface-variant">
+                        New to Truvia? 
+                        <a class="text-secondary font-semibold hover:text-primary transition-colors" href="#" onclick="switchTab('signup')">Create an Account</a>
+</p>
+</div>
+</div>
+<!-- Secure Connection Badge -->
+<div class="bg-surface-container-lowest/50 py-stack-sm px-card-padding border-t border-outline-variant/30 flex items-center justify-center gap-unit">
+<span class="material-symbols-outlined text-tertiary text-[14px]" data-icon="verified_user" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+<span class="text-label-md text-on-surface-variant font-data-mono text-[9px] uppercase tracking-[0.2em]">TLS 1.3 / AES-256 Bit Encryption Active</span>
+</div>
+</div>
+<!-- System Background Visual Element -->
+<div class="mt-stack-lg w-full max-w-[440px] flex justify-center opacity-20">
+<div class="w-full h-[1px] bg-gradient-to-r from-transparent via-primary to-transparent"></div>
+</div>
+</main>
+<!-- Shared Footer Component -->
+<footer class="w-full py-stack-md px-gutter flex flex-col md:flex-row justify-between items-center gap-stack-md bg-surface-container-lowest border-t border-outline-variant/20 relative z-10">
+<div class="flex items-center gap-stack-md">
+<div class="font-label-md text-label-md text-primary tracking-widest uppercase">Truvia Public Safety</div>
+<div class="hidden md:block h-4 w-[1px] bg-outline-variant"></div>
+<p class="font-label-md text-on-surface-variant">© 2024 Sentinel Public Safety. Gov-Grade Obsidian Security.</p>
+</div>
+<div class="flex gap-stack-md">
+<a class="font-label-md text-on-surface-variant hover:text-primary transition-colors" href="#">Privacy</a>
+<a class="font-label-md text-on-surface-variant hover:text-primary transition-colors" href="#">Terms</a>
+<a class="font-label-md text-on-surface-variant hover:text-primary transition-colors" href="#">Security</a>
+<a class="font-label-md text-on-surface-variant hover:text-primary transition-colors" href="#">Support</a>
+</div>
+</footer>
+<script>
+        function switchTab(type) {
+            const loginTab = document.getElementById('tab-login');
+            const signupTab = document.getElementById('tab-signup');
+            const submitBtn = document.querySelector('button[type="submit"]');
+
+            if (type === 'login') {
+                loginTab.classList.add('border-primary', 'text-primary');
+                loginTab.classList.remove('border-transparent', 'text-on-surface-variant');
+                signupTab.classList.add('border-transparent', 'text-on-surface-variant');
+                signupTab.classList.remove('border-primary', 'text-primary');
+                submitBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">encrypted</span> SECURE LOGIN';
+            } else {
+                signupTab.classList.add('border-primary', 'text-primary');
+                signupTab.classList.remove('border-transparent', 'text-on-surface-variant');
+                loginTab.classList.add('border-transparent', 'text-on-surface-variant');
+                loginTab.classList.remove('border-primary', 'text-primary');
+                submitBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">how_to_reg</span> CREATE ACCOUNT';
+            }
+        }
+
+        function switchRole(role) {
+            const citizenBtn = document.getElementById('role-citizen');
+            const agencyBtn = document.getElementById('role-agency');
+            const mfaReminder = document.getElementById('mfa-reminder');
+            const labelId = document.getElementById('label-id');
+            const roleMessage = document.getElementById('role-message');
+
+            if (role === 'citizen') {
+                citizenBtn.classList.add('bg-primary', 'text-on-primary', 'shadow-md');
+                citizenBtn.classList.remove('text-on-surface-variant', 'hover:text-on-surface');
+                agencyBtn.classList.remove('bg-primary', 'text-on-primary', 'shadow-md');
+                agencyBtn.classList.add('text-on-surface-variant', 'hover:text-on-surface');
+                mfaReminder.classList.add('hidden');
+                labelId.innerText = 'EMAIL ADDRESS';
+                roleMessage.innerHTML = '<p class="text-label-md text-on-secondary-container">Standard encryption active for public users. Identity verification required for access.</p>';
+            } else {
+                agencyBtn.classList.add('bg-primary', 'text-on-primary', 'shadow-md');
+                agencyBtn.classList.remove('text-on-surface-variant', 'hover:text-on-surface');
+                citizenBtn.classList.remove('bg-primary', 'text-on-primary', 'shadow-md');
+                citizenBtn.classList.add('text-on-surface-variant', 'hover:text-on-surface');
+                mfaReminder.classList.remove('hidden');
+                labelId.innerText = 'AGENCY EMAIL / BADGE ID';
+                roleMessage.innerHTML = '<p class="text-label-md text-on-secondary-container font-semibold">Authorized Personnel Only. Logins are audited and monitored under Federal Statute.</p>';
+            }
+        }
+    </script>
+</body></html>

@@ -274,7 +274,7 @@ truvia-backend/
 │       └── worker_entrypoint.py     # RQ worker process entrypoint
 ├── alembic/                          # DB migrations
 ├── tests/
-└── docker-compose.yml                # Local dev: postgres, redis, (neo4j via Aura in cloud)
+└── local_setup.sh                    # Local dev: script to initialize local services (postgres, redis)
 ```
 
 ### 5.3 Services / Modules Breakdown
@@ -505,20 +505,20 @@ Since Postgres is authoritative and Neo4j is derived, the system tolerates **bri
 ### 10.1 Cloud & Hosting Strategy
 
 - **Frontend:** deployed to a managed static/edge hosting platform (e.g., Vercel) with automatic preview deployments per pull request — zero server management, global CDN for asset delivery.
-- **Backend (API + worker processes):** deployed as **two containers from the same Docker image** (one running the Uvicorn API server, one running the RQ worker loop) to a managed container platform (e.g., Render, Railway, or a single cloud VM running Docker Compose) — chosen specifically to avoid Kubernetes overhead disproportionate to a 2-person, 18-day project.
+- **Backend (API + worker processes):** deployed as python processes running under a system manager (like systemd) directly on a managed virtual machine or cloud platform (e.g., Render, Railway, or a cloud VM running the Uvicorn server and python worker entrypoint) — chosen specifically to avoid containerization and Kubernetes overhead disproportionate to a 2-person, 18-day project.
 - **PostgreSQL:** managed instance (e.g., the hosting platform's managed Postgres, or a provider like Neon/Supabase) with automated daily backups.
 - **Neo4j:** Neo4j Aura (managed, free/professional tier) — avoids the team having to operate graph database infrastructure themselves.
 - **Redis:** managed Redis instance (e.g., the hosting platform's managed Redis or Upstash) for both the task queue and rate-limit/cache storage.
 - **Object storage:** S3-compatible bucket for raw uploads, accessed via signed URLs (uploads go client→signed-URL→bucket directly where feasible, to avoid routing large audio files through the API process itself).
 
-### 10.2 Containers
+### 10.2 Service Execution
 
-A single `Dockerfile` builds the backend image; the API and worker are two different **entrypoints/commands** against the same image (`uvicorn app.main:app` vs. `python -m app.workers.worker_entrypoint`), guaranteeing both processes always run identical code/dependency versions — eliminating an entire class of "worker and API drifted out of sync" bugs.
+The API and worker run directly in a python virtual environment on the host machine. The API runs using `uvicorn app.main:app` and the worker runs using `python -m app.workers.worker_entrypoint`. Both are managed as system services (e.g. systemd or PM2) to ensure automatic restarts on failure, guaranteeing both processes always run identical code/dependency versions.
 
 ### 10.3 CI/CD
 
-- **CI (on every pull request):** lint (ruff/eslint), type-check (mypy/tsc), unit tests (pytest/vitest), and a build check for both frontend and backend images — must pass before merge.
-- **CD:** merge to `main` triggers automatic deployment of the frontend (via the hosting platform's git integration) and a build-and-push of the backend Docker image followed by a rolling restart of the API and worker containers.
+- **CI (on every pull request):** lint (ruff/eslint), type-check (mypy/tsc), and unit tests (pytest/vitest) — must pass before merge.
+- **CD:** merge to `main` triggers automatic deployment of the frontend (via the hosting platform's git integration) and a git-pull followed by a virtual environment reload and rolling restart of the API and worker processes on the backend server.
 - Environment separation: a `staging` environment (separate DB instances, separate LLM API key with lower rate limits) mirrors `production` for pre-demo verification, given the criticality of a stable environment on judging day.
 
 ### 10.4 Scaling Strategy (Documented, Not Fully Exercised at Hackathon Scale)

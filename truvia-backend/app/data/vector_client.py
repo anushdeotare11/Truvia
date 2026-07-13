@@ -47,30 +47,45 @@ async def search_similar_chunks(
         query_vector = await get_embedding(query_text)
         
         if is_sqlite:
-            logger.info("Performing Python-based vector similarity search (SQLite fallback)")
+            logger.info("Performing lexical keyword similarity search (SQLite fallback)")
             result = await session.execute(select(KnowledgeBaseChunk))
             all_chunks = result.scalars().all()
-            
+
+            # Lexical keyword-overlap scoring. The stored embeddings are a deterministic
+            # placeholder (not semantic), so we score by real token overlap between the
+            # query and each chunk — this retrieves genuinely relevant guideline passages.
+            import re
+            stop = {
+                "the","a","an","and","or","of","to","in","is","are","for","on","with","how","does",
+                "do","what","why","when","i","my","me","you","your","it","this","that","if","can",
+                "should","about","from","be","as","at","by","was","were","will","would","tell",
+            }
+            def tokenize(t: str):
+                return {w for w in re.findall(r"[a-z0-9]+", t.lower()) if len(w) > 2 and w not in stop}
+
+            q_tokens = tokenize(query_text)
             scored_chunks = []
             for chunk in all_chunks:
-                # Chunk embedding was deserialized by JSONEncodedText custom decorator
-                chunk_vector = chunk.embedding
-                if not chunk_vector or not isinstance(chunk_vector, list):
+                c_tokens = tokenize(chunk.chunk_text)
+                if not c_tokens:
                     continue
-                
-                similarity = python_cosine_similarity(query_vector, chunk_vector)
-                if similarity >= similarity_threshold:
-                    scored_chunks.append({
-                        "id": str(chunk.id),
-                        "knowledge_base_id": str(chunk.knowledge_base_id),
-                        "chunk_index": chunk.chunk_index,
-                        "chunk_text": chunk.chunk_text,
-                        "similarity": float(similarity)
-                    })
-            
-            # Sort by similarity descending
+                overlap = q_tokens & c_tokens
+                # Normalize by query length so short queries still score meaningfully.
+                score = len(overlap) / max(1, len(q_tokens)) if q_tokens else 0.0
+                scored_chunks.append({
+                    "id": str(chunk.id),
+                    "knowledge_base_id": str(chunk.knowledge_base_id),
+                    "chunk_index": chunk.chunk_index,
+                    "chunk_text": chunk.chunk_text,
+                    "similarity": float(score),
+                })
+
             scored_chunks.sort(key=lambda x: x["similarity"], reverse=True)
-            return scored_chunks[:limit]
+            relevant = [c for c in scored_chunks if c["similarity"] > 0]
+            # Return the best matches; if nothing overlaps, fall back to the top chunks
+            # so the assistant still has grounding context to work from.
+            chosen = relevant[:limit] if relevant else scored_chunks[:limit]
+            return chosen
             
         else:
             # pgvector query: cosine distance operator is <=>

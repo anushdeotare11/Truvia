@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from app.data.postgres_client import get_db
 from app.models.user import User
 from app.models.report import Report, Evidence
@@ -9,7 +10,7 @@ from app.api import deps
 from app.data.storage_client import storage_client
 from app.core.queue import enqueue_job
 from app.orchestration.pipeline import run_pipeline, run_pipeline_continuation
-from typing import List, Optional
+from typing import List, Optional, Union
 import hashlib
 import logging
 
@@ -35,9 +36,10 @@ def run_continuation_pipeline(report_id: str):
 
 @router.post("/submit", response_model=ReportOut, status_code=status.HTTP_201_CREATED)
 async def submit_report(
+    background_tasks: BackgroundTasks,
     source_type: str = Form(...),  # screenshot, audio, text
     text_content: Optional[str] = Form(None),
-    files: Optional[List[UploadFile]] = File(None),
+    files: Optional[Union[List[UploadFile], UploadFile]] = File(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
@@ -64,7 +66,8 @@ async def submit_report(
 
     # 2. Process and save uploaded files
     if files and source_type != "text":
-        for upload_file in files:
+        uploaded_files = files if isinstance(files, list) else [files]
+        for upload_file in uploaded_files:
             content = await upload_file.read()
             # Calculate SHA-256 hash
             sha256 = hashlib.sha256(content).hexdigest()
@@ -89,19 +92,17 @@ async def submit_report(
         await db.commit()
         await db.refresh(new_report)
 
-    # 3. Enqueue background task for Agent 1 processing
-    try:
-        enqueue_job(run_intake_pipeline, str(new_report.id))
-    except Exception as e:
-        logger.error(f"Failed to queue processing job: {str(e)}. Running synchronously instead.")
-        # Fallback to synchronous run if Redis queue is down
-        await run_pipeline(str(new_report.id))
-        await db.refresh(new_report)
+    # 3. Schedule Agent pipeline to run in-process after the response is returned.
+    #    (Redis/RQ worker is not required — the pipeline runs as a FastAPI background task.)
+    background_tasks.add_task(run_pipeline, str(new_report.id))
 
     # Return report structure
     # Fetch complete object with evidence items preloaded
     result = await db.execute(
-        select(Report).where(Report.id == new_report.id)
+        select(Report).options(
+            selectinload(Report.evidence_items),
+            selectinload(Report.threat_scores)
+        ).where(Report.id == new_report.id)
     )
     return result.scalar_one()
 
@@ -115,7 +116,10 @@ async def list_reports(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
-    query = select(Report)
+    query = select(Report).options(
+        selectinload(Report.evidence_items),
+        selectinload(Report.threat_scores)
+    )
     
     # Restrict citizens to only their reports
     if current_user.role not in ["officer", "admin"]:
@@ -176,7 +180,10 @@ async def get_report_details(
         raise HTTPException(status_code=400, detail="Invalid UUID format")
         
     result = await db.execute(
-        select(Report).where(Report.id == report_uuid)
+        select(Report).options(
+            selectinload(Report.evidence_items),
+            selectinload(Report.threat_scores)
+        ).where(Report.id == report_uuid)
     )
     report = result.scalar_one_or_none()
     
@@ -194,6 +201,7 @@ from fastapi import Body
 @router.patch("/{report_id}/text", response_model=ReportOut)
 async def update_report_text(
     report_id: str,
+    background_tasks: BackgroundTasks,
     cleaned_text: str = Body(..., embed=True),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user)
@@ -205,7 +213,10 @@ async def update_report_text(
         raise HTTPException(status_code=400, detail="Invalid UUID format")
         
     result = await db.execute(
-        select(Report).where(Report.id == report_uuid)
+        select(Report).options(
+            selectinload(Report.evidence_items),
+            selectinload(Report.threat_scores)
+        ).where(Report.id == report_uuid)
     )
     report = result.scalar_one_or_none()
     
@@ -223,9 +234,9 @@ async def update_report_text(
     await db.refresh(report)
 
     try:
-        enqueue_job(run_continuation_pipeline, str(report.id))
+        background_tasks.add_task(run_pipeline_continuation, str(report.id))
     except Exception as e:
-        logger.error(f"Failed to queue continuation job: {str(e)}. Running synchronously instead.")
+        logger.error(f"Failed to schedule continuation job: {str(e)}. Running synchronously instead.")
         await run_pipeline_continuation(str(report.id))
         await db.refresh(report)
         
@@ -374,6 +385,14 @@ async def escalate_report(
         logger.info(f"Report {report.id} escalated to newly created Case {case_num}")
 
     await db.commit()
+    
+    # Trigger Agent 6 to summarize the case background dynamically after escalation
+    try:
+        from app.agents.investigation import investigation_agent
+        await investigation_agent.summarize_case(str(linked_case_id))
+    except Exception as ie:
+        logger.error(f"Agent 6 case summarization failed on escalation: {str(ie)}")
+
     return {
         "status": "escalated",
         "report_id": str(report.id),

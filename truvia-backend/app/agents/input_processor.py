@@ -2,8 +2,9 @@ import os
 import base64
 import json
 import logging
+import asyncio
 from sqlalchemy import select, update
-from anthropic import Anthropic
+import google.generativeai as genai
 from app.config import settings
 from app.data.postgres_client import AsyncSessionLocal
 from app.models.report import Report, Evidence
@@ -13,20 +14,25 @@ logger = logging.getLogger("truvia.agents.input_processor")
 
 class InputProcessorAgent:
     def __init__(self):
-        self.api_key = settings.ANTHROPIC_API_KEY
+        self.api_key = settings.GOOGLE_API_KEY
         # Check if the API key is set and not empty/placeholder
-        if self.api_key and "your-anthropic-key" not in self.api_key and len(self.api_key) > 10:
-            self.client = Anthropic(api_key=self.api_key)
-            logger.info("Initialized InputProcessorAgent with Anthropic API client")
+        if self.api_key and "your-google-key" not in self.api_key and len(self.api_key) > 10:
+            genai.configure(api_key=self.api_key)
+            self.client = genai.GenerativeModel("gemini-2.5-flash")
+            logger.info("Initialized InputProcessorAgent with Google Gemini API client")
         else:
             self.client = None
-            logger.warning("No Anthropic API key configured. Running InputProcessorAgent in degraded mock mode.")
+            logger.warning("No Google API key configured. Running InputProcessorAgent in degraded mock mode.")
 
     async def process_report(self, report_id: str) -> dict:
         """
         Main entry point for Agent 1. Fetches report and evidence, extracts text,
         detects language, evaluates confidence, and updates report state in the database.
         """
+        import uuid
+        if isinstance(report_id, str):
+            report_id = uuid.UUID(report_id)
+            
         async with AsyncSessionLocal() as session:
             try:
                 # 1. Fetch Report and linked Evidence
@@ -77,7 +83,7 @@ class InputProcessorAgent:
                         }
                     
                     elif ev.evidence_type == "audio" or ext in [".mp3", ".wav", ".m4a", ".ogg"]:
-                        text_out, lang, conf = await self._asr_audio(file_bytes, ext)
+                        text_out, lang, conf = await self._asr_audio(file_bytes, ext, ev.file_ref)
                         extractions.append(text_out)
                         detected_lang = lang
                         input_confidence = min(input_confidence, conf)
@@ -143,13 +149,13 @@ class InputProcessorAgent:
 
     async def _ocr_image(self, image_bytes: bytes, extension: str) -> tuple[str, str, float]:
         """
-        Runs OCR. Uses Claude Multimodal API if configured, otherwise rules-based mock.
+        Runs OCR. Uses Gemini Multimodal API if configured, otherwise rules-based mock.
         """
         if self.client:
             try:
-                # Map extension to media type
-                media_type = "image/png" if extension == ".png" else "image/jpeg"
-                base64_image = base64.b64encode(image_bytes).decode("utf-8")
+                import io
+                import PIL.Image
+                image = PIL.Image.open(io.BytesIO(image_bytes))
 
                 prompt = (
                     "Please extract all text content from this screenshot. "
@@ -160,32 +166,14 @@ class InputProcessorAgent:
                     "'extracted_text', 'language', and 'confidence'. Keep confidence under 1.0."
                 )
 
-                response = self.client.messages.create(
-                    model="claude-3-5-sonnet-20241022",
-                    max_tokens=1000,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "image",
-                                    "source": {
-                                        "type": "base64",
-                                        "media_type": media_type,
-                                        "data": base64_image
-                                    }
-                                },
-                                {
-                                    "type": "text",
-                                    "text": prompt
-                                }
-                            ]
-                        }
-                    ]
+                response = await asyncio.to_thread(
+                    self.client.generate_content,
+                    [image, prompt],
+                    generation_config={"response_mime_type": "application/json"}
                 )
                 
                 # Parse JSON response
-                res_content = response.content[0].text.strip()
+                res_content = response.text.strip()
                 # Find JSON bounds in case LLM wraps it in markdown
                 if "```json" in res_content:
                     res_content = res_content.split("```json")[1].split("```")[0].strip()
@@ -200,7 +188,7 @@ class InputProcessorAgent:
                 )
 
             except Exception as e:
-                logger.error(f"Claude Multimodal OCR failed: {str(e)}. Falling back to degraded mock.")
+                logger.error(f"Gemini Multimodal OCR failed: {str(e)}. Falling back to degraded mock.")
 
         # Degraded mode fallback
         # Simulate OCR response based on dummy bytes or file context
@@ -211,19 +199,75 @@ class InputProcessorAgent:
         )
         return mock_text, "en", 0.90
 
-    async def _asr_audio(self, audio_bytes: bytes, extension: str) -> tuple[str, str, float]:
+    async def _asr_audio(self, audio_bytes: bytes, extension: str, file_ref: str = "") -> tuple[str, str, float]:
         """
-        Transcribes audio recordings.
+        Transcribes audio recordings using OpenAI Whisper API if configured,
+        otherwise falls back to a content-aware dynamic mock.
         """
-        # In this MVP, we simulate ASR/STT with realistic cybercrime scripts
-        # We can simulate slightly degraded confidence for testing stepper visual alerts
-        mock_text = (
-            "Hello, this is officer Amit Kumar calling from the Delhi Police Headquarters. "
-            "We have found a package in your name containing illegal substances. "
-            "You are under digital arrest. Do not disconnect this call or you will face immediate custody. "
-            "Verify your identity by paying 2,50,000 rupees to the security account."
-        )
-        return mock_text, "hinglish", 0.55  # Exposes low-confidence flag (< 0.60) for testing alerts
+        openai_key = getattr(settings, "OPENAI_API_KEY", None)
+        if openai_key and "your-openai-key" not in openai_key and len(openai_key) > 10:
+            import httpx
+            try:
+                headers = {"Authorization": f"Bearer {openai_key}"}
+                # Whisper requires multipart file upload
+                files = {
+                    "file": (f"audio{extension}", audio_bytes, f"audio/{extension.strip('.')}")
+                }
+                data = {
+                    "model": "whisper-1",
+                    "response_format": "json"
+                }
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        "https://api.openai.com/v1/audio/transcriptions",
+                        headers=headers,
+                        files=files,
+                        data=data,
+                        timeout=30.0
+                    )
+                    if resp.status_code == 200:
+                        res_json = resp.json()
+                        text = res_json.get("text", "")
+                        return text, "en", 0.95
+                    else:
+                        logger.error(f"OpenAI Whisper API returned status {resp.status_code}: {resp.text}")
+            except Exception as e:
+                logger.error(f"OpenAI Whisper API call failed: {str(e)}")
+
+        # Content-aware dynamic mock fallback
+        ref_lower = file_ref.lower()
+        if "refund" in ref_lower or "upi" in ref_lower or "prize" in ref_lower or "lottery" in ref_lower:
+            mock_text = (
+                "Congratulation! You won twenty five thousand rupees prize from KBC lottery. "
+                "To transfer prize in bank account, scan QR code refund link. "
+                "Open UPI app, scan link, enter your secret UPI PIN to receive money instantly."
+            )
+            lang = "hinglish"
+        elif "bill" in ref_lower or "electricity" in ref_lower or "power" in ref_lower:
+            mock_text = (
+                "Alert: Your electricity bill is unpaid. Power supply will be disconnected tonight at nine thirty. "
+                "Immediately call electricity officer cell at nine eight seven six five four three two one zero "
+                "and settle dues via UPI to avoid cut."
+            )
+            lang = "en"
+        elif "kyc" in ref_lower or "bank" in ref_lower or "account" in ref_lower or "card" in ref_lower:
+            mock_text = (
+                "Dear customer, your bank account is blocked. Please update KYC immediately. "
+                "Call helpline number or go to security link update-kyc-verify.com. "
+                "Verify netbanking password and OTP to reactivate account."
+            )
+            lang = "en"
+        else:
+            # Default to digital arrest
+            mock_text = (
+                "Hello, this is officer Amit Kumar calling from the Delhi Police Headquarters. "
+                "We have found a package in your name containing illegal substances. "
+                "You are under digital arrest. Do not disconnect this call or you will face immediate custody. "
+                "Verify your identity by paying 2,50,000 rupees to the security account."
+            )
+            lang = "hinglish"
+
+        return mock_text, lang, 0.55  # Low-confidence threshold flag (< 0.60) for testing alerts
 
     async def _detect_language_local(self, text: str) -> str:
         """

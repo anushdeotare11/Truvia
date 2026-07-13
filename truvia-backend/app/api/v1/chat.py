@@ -22,7 +22,7 @@ class ChatResponse(BaseModel):
     answer: str
     citations: List[CitationOut] = []
 
-@router.post("/", response_model=ChatResponse, status_code=status.HTTP_200_OK)
+@router.post("", response_model=ChatResponse, status_code=status.HTTP_200_OK)
 async def chat_with_assistant(
     payload: ChatQuery,
     db: AsyncSession = Depends(get_db),

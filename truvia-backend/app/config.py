@@ -37,6 +37,8 @@ class Settings(BaseSettings):
 
     # LLM Provider Config
     ANTHROPIC_API_KEY: Optional[str] = Field(default=None)
+    OPENAI_API_KEY: Optional[str] = Field(default=None)
+    GOOGLE_API_KEY: Optional[str] = Field(default=None)
 
     # Storage Config
     STORAGE_TYPE: str = "local"  # local or s3

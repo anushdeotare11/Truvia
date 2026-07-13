@@ -7,6 +7,7 @@ from sqlalchemy import select
 from app.data.neo4j_client import neo4j_client
 from typing import List, Dict, Any
 import logging
+import asyncio
 
 router = APIRouter()
 logger = logging.getLogger("truvia.api.graph")
@@ -100,7 +101,7 @@ async def get_graph_overview(
             
             # Run local clustering over Neo4j nodes to determine community groups
             nodes_list = list(nodes_map.values())
-            communities = calculate_local_communities(nodes_list, edges)
+            communities = await asyncio.to_thread(calculate_local_communities, nodes_list, edges)
             for node in nodes_list:
                 node["group"] = communities.get(node["id"], 0)
                 
@@ -142,7 +143,7 @@ async def get_graph_overview(
             })
             
         # Run Connected Components search to partition nodes into community rings
-        communities = calculate_local_communities(nodes_list, edges_list)
+        communities = await asyncio.to_thread(calculate_local_communities, nodes_list, edges_list)
         for node in nodes_list:
             node["group"] = communities.get(node["id"], 0)
             
