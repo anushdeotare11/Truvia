@@ -24,6 +24,7 @@ export default function FraudShieldPage() {
   const [error, setError] = useState<string | null>(null);
   const [escalating, setEscalating] = useState(false);
   const [escalated, setEscalated] = useState<{ caseId: string } | null>(null);
+  const [dismissing, setDismissing] = useState(false);
   const [history, setHistory] = useState<Report[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -128,6 +129,22 @@ export default function FraudShieldPage() {
       await api.download(`/reports/${report.id}/pdf`, `truvia-report-${report.id.slice(0, 8)}.pdf`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not download report.");
+    }
+  }
+
+  async function handleDismiss() {
+    if (!report) return;
+    setDismissing(true);
+    setError(null);
+    try {
+      await api.post(`/reports/${report.id}/dismiss`);
+      const refreshed = await api.get<Report>(`/reports/${report.id}`);
+      setReport(refreshed);
+      loadHistory();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not mark as reviewed.");
+    } finally {
+      setDismissing(false);
     }
   }
 
@@ -383,6 +400,14 @@ export default function FraudShieldPage() {
                   >
                     <Icon name="file_download" className="text-[18px]" />
                     Download Report
+                  </button>
+                  <button
+                    onClick={handleDismiss}
+                    disabled={dismissing || report.status === "dismissed" || report.status === "escalated"}
+                    className="w-full py-stack-md bg-surface-container-high text-on-surface rounded-xl font-label-md uppercase tracking-widest hover:bg-surface-variant transition-all flex items-center justify-center gap-stack-sm disabled:opacity-60"
+                  >
+                    <Icon name="check_circle" className="text-[18px]" />
+                    {report.status === "dismissed" ? "Marked as Reviewed" : "Mark as Reviewed"}
                   </button>
                 </div>
               </div>

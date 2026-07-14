@@ -53,6 +53,18 @@ export default function ReportsPage() {
     }
   }
 
+  async function exportCsv() {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (status) params.set("status", status);
+    if (sourceType) params.set("source_type", sourceType);
+    try {
+      await api.download(`/reports/export?${params.toString()}`, "truvia-complaints-export.csv");
+    } catch {
+      setError("Could not export CSV.");
+    }
+  }
+
   return (
     <div className="p-gutter flex flex-col h-[calc(100vh-64px)] overflow-hidden">
       <section className="flex flex-wrap items-end justify-between gap-stack-md mb-stack-md">
@@ -62,6 +74,14 @@ export default function ReportsPage() {
             Archive of investigation documents and citizen threat assessments.
           </p>
         </div>
+        <button
+          onClick={exportCsv}
+          className="h-10 px-stack-md bg-primary-container text-white rounded-lg flex items-center gap-2 font-label-md font-bold uppercase hover:brightness-110 transition-all"
+          title="Export current filtered view as CSV"
+        >
+          <Icon name="download" className="text-[18px]" />
+          Export CSV
+        </button>
       </section>
 
       {/* Filters */}

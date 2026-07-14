@@ -3,13 +3,15 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.data.postgres_client import get_db
 from app.api import deps
-from app.models.case import Case, CaseReport
-from app.models.report import Report, Entity, ReportEntity
+from app.models.case import Case, CaseReport, OfficerAssignment, IntelligencePackage
+from app.models.report import Report, Entity, ReportEntity, ThreatScore
 from app.models.user import User
 from app.models.audit import AuditLog
 from sqlalchemy import select, func, and_
 from typing import List, Dict, Any, Optional
 import uuid
+import hashlib
+import json
 import logging
 from app.agents.investigation import investigation_agent
 from app.core.pdf import generate_report_pdf
@@ -30,7 +32,7 @@ logger = logging.getLogger("truvia.api.cases")
 @router.get("/stats", status_code=status.HTTP_200_OK)
 async def get_dashboard_stats(
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(deps.get_current_user)
+    current_user = Depends(deps.require_officer)
 ):
     """
     Returns KPI summaries, daily time-series report volumes, and city/district breakdowns.
@@ -50,34 +52,38 @@ async def get_dashboard_stats(
         )
         high_risk_entities = ent_count_result.scalar() or 0
 
-        # 4. Mock time-series daily metrics (last 7 days)
-        # In a real database, we group by date. For sqlite compatibility during demo:
-        daily_metrics = [
-            {"date": "Mon", "reports": min(10, total_reports // 5 + 1)},
-            {"date": "Tue", "reports": min(15, total_reports // 4 + 2)},
-            {"date": "Wed", "reports": min(12, total_reports // 4 + 1)},
-            {"date": "Thu", "reports": min(25, total_reports // 3 + 3)},
-            {"date": "Fri", "reports": min(20, total_reports // 3 + 1)},
-            {"date": "Sat", "reports": min(35, total_reports // 2 + 5)},
-            {"date": "Sun", "reports": total_reports}
-        ]
+        # 4. REAL daily complaint volume for the last 7 days (grouped by calendar date).
+        #    func.date() works on both SQLite and Postgres. Missing days are zero-filled
+        #    so the trend chart always shows a continuous 7-day window.
+        from datetime import datetime, timedelta
+        today = datetime.now().date()
+        window_start = today - timedelta(days=6)
+        day_rows = await db.execute(
+            select(func.date(Report.created_at), func.count(Report.id))
+            .where(Report.created_at >= datetime(window_start.year, window_start.month, window_start.day))
+            .group_by(func.date(Report.created_at))
+        )
+        counts_by_day = {str(d): int(c) for d, c in day_rows.all()}
+        daily_metrics = []
+        for i in range(7):
+            d = window_start + timedelta(days=i)
+            daily_metrics.append({
+                "date": d.strftime("%a"),
+                "reports": counts_by_day.get(d.isoformat(), 0),
+            })
 
-        # 5. City/District breakdown maps (PRD/TRD requirement)
-        # Mocked breakdown values matching synthetic seeder
-        city_breakdown = {
-            "Delhi NCR": int(total_reports * 0.35) + 3,
-            "Mumbai Metro": int(total_reports * 0.22) + 2,
-            "Bengaluru Hub": int(total_reports * 0.18) + 1,
-            "Hyderabad Tech": int(total_reports * 0.15) + 1,
-            "Chennai Core": int(total_reports * 0.10)
-        }
+        # 5. Average threat score across all current scores (real KPI, per TRD dashboard spec).
+        avg_score_result = await db.execute(
+            select(func.avg(ThreatScore.threat_score)).where(ThreatScore.is_current == True)
+        )
+        avg_threat_score = round(float(avg_score_result.scalar() or 0), 1)
 
         return {
             "total_reports": total_reports,
             "total_cases": total_cases,
             "high_risk_entities": high_risk_entities,
+            "avg_threat_score": avg_threat_score,
             "daily_metrics": daily_metrics,
-            "city_breakdown": city_breakdown
         }
     except Exception as e:
         logger.error(f"Failed to compile dashboard stats: {str(e)}")
@@ -85,21 +91,29 @@ async def get_dashboard_stats(
 
 @router.get("", status_code=status.HTTP_200_OK)
 async def list_cases(
+    mine: bool = False,
+    status: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(deps.get_current_user)
+    current_user = Depends(deps.require_officer)
 ):
     """
-    Lists all active cyber investigation cases.
+    Lists investigation cases. `mine=true` scopes to the logged-in officer's assigned
+    cases (§6.4 My Assigned Cases); `status` narrows by case status.
     """
-    result = await db.execute(select(Case).order_by(Case.created_at.desc()))
-    cases = result.scalars().all()
-    return cases
+    query = select(Case)
+    if mine:
+        query = query.where(Case.assigned_officer_id == current_user.id)
+    if status:
+        query = query.where(Case.status == status)
+    query = query.order_by(Case.created_at.desc())
+    result = await db.execute(query)
+    return result.scalars().all()
 
 @router.get("/{case_id}", status_code=status.HTTP_200_OK)
 async def get_case_details(
     case_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(deps.get_current_user)
+    current_user = Depends(deps.require_officer)
 ):
     """
     Returns full details for a case, including its linked reports, entities, and audit trails.
@@ -140,6 +154,31 @@ async def get_case_details(
         .order_by(AuditLog.created_at.desc())
     )
     audit_logs = audit_result.scalars().all()
+
+    # 3b. Correlated complaints: OTHER reports (not already linked to this case) that
+    #     share at least one extracted entity with this case's reports. Real Postgres
+    #     correlation via report_entities — the graph module will deepen this later.
+    correlated = []
+    linked_report_ids = {r.id for r in reports}
+    if entities:
+        entity_ids = [e.id for e in entities]
+        corr_result = await db.execute(
+            select(Report, func.count(func.distinct(ReportEntity.entity_id)).label("shared"))
+            .join(ReportEntity, ReportEntity.report_id == Report.id)
+            .where(and_(ReportEntity.entity_id.in_(entity_ids), Report.id.notin_(list(linked_report_ids) or [uuid.uuid4()])))
+            .group_by(Report.id)
+            .order_by(func.count(func.distinct(ReportEntity.entity_id)).desc())
+            .limit(20)
+        )
+        for rep, shared in corr_result.all():
+            correlated.append({
+                "id": str(rep.id),
+                "source_type": rep.source_type,
+                "status": rep.status,
+                "cleaned_text": (rep.cleaned_text or "")[:200],
+                "shared_entities": int(shared),
+                "created_at": rep.created_at.isoformat() if rep.created_at else None,
+            })
 
     # Get assigned officer details
     officer_name = "Unassigned"
@@ -182,7 +221,8 @@ async def get_case_details(
             "action": log.action,
             "diff_json": log.diff_json,
             "created_at": log.created_at.isoformat()
-        } for log in audit_logs]
+        } for log in audit_logs],
+        "correlated_reports": correlated,
     }
 
 @router.post("/{case_id}/assign", status_code=status.HTTP_200_OK)
@@ -190,7 +230,7 @@ async def assign_case(
     case_id: str,
     payload: CaseAssignmentPayload,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(deps.get_current_user)
+    current_user = Depends(deps.require_officer)
 ):
     """
     Assigns an investigation case to an officer, logging the assignment in the audit ledger.
@@ -216,7 +256,25 @@ async def assign_case(
     # Update Case
     case.assigned_officer_id = officer.id
     case.status = "under_investigation"
-    
+
+    # Persist real assignment HISTORY in officer_assignments (schema §): close any
+    # currently-open assignment for this case, then open a new one. This is the
+    # durable record of who was assigned when and by whom — not just a status flag.
+    from datetime import datetime
+    open_rows = await db.execute(
+        select(OfficerAssignment).where(
+            and_(OfficerAssignment.case_id == case.id, OfficerAssignment.unassigned_at.is_(None))
+        )
+    )
+    for prev in open_rows.scalars().all():
+        prev.unassigned_at = datetime.utcnow()
+
+    db.add(OfficerAssignment(
+        case_id=case.id,
+        officer_id=officer.id,
+        assigned_by=current_user.id,
+    ))
+
     # Log Audit Trail
     audit = AuditLog(
         actor_id=current_user.id,
@@ -239,7 +297,7 @@ async def assign_case(
 async def compile_intelligence_package(
     case_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(deps.get_current_user)
+    current_user = Depends(deps.require_officer)
 ):
     """
     Compiles a comprehensive court-ready multi-page PDF package containing all case-linked evidence.
@@ -272,6 +330,36 @@ async def compile_intelligence_package(
             .where(ReportEntity.report_id.in_(report_ids))
         )
         entities = entities_result.scalars().all()
+
+    # Persist a real IntelligencePackage record (schema: intelligence_packages) capturing
+    # the case's actual assembled data, before rendering the downloadable PDF.
+    package_json = {
+        "case_number": case.case_number,
+        "case_type": case.case_type,
+        "priority": case.priority,
+        "status": case.status,
+        "ai_summary": case.ai_summary,
+        "entities": [
+            {"type": e.type, "value": e.raw_value, "risk_score": float(e.risk_score), "risk_tier": e.risk_tier}
+            for e in entities
+        ],
+        "reports": [
+            {"id": str(r.id), "source_type": r.source_type, "status": r.status, "cleaned_text": r.cleaned_text}
+            for r in reports
+        ],
+    }
+    content_hash = hashlib.sha256(
+        json.dumps(package_json, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
+    package = IntelligencePackage(
+        case_id=case.id,
+        package_json=package_json,
+        package_type="ring_level" if case.case_type == "ring_level" else "case_level",
+        content_hash=content_hash,
+        generated_by=current_user.id,
+    )
+    db.add(package)
+    await db.commit()
 
     # Generate Case PDF Document
     buffer = io.BytesIO()

@@ -121,40 +121,62 @@ class InvestigationAgent:
 
     async def _generate_local_summary(self, texts: list, phones: list, upis: list) -> dict:
         """
-        Mocked fallback summarizing logic.
+        Deterministic, degraded-mode summary composed from the ACTUAL case facts
+        (number of complaints, scam patterns detected in the real text, distinct
+        linked identifiers, and monetary amounts actually mentioned). No canned prose
+        and no fabricated loss figure — everything here is derived from the inputs.
         """
-        scam_patterns = []
-        is_digital_arrest = False
-        is_upi_refund = False
-        
-        for txt in texts:
-            low_txt = txt.lower()
-            if "arrest" in low_txt or "police" in low_txt or "customs" in low_txt:
-                is_digital_arrest = True
-            if "upi" in low_txt or "refund" in low_txt or "link" in low_txt:
-                is_upi_refund = True
+        import re
 
-        if is_digital_arrest:
-            scam_patterns.append("Digital Arrest intimidation loop")
-            summary = (
-                "This case clusters multiple complaints showcasing a coordinated 'Digital Arrest' scam ring. "
-                "Fraudsters impersonating central police agencies coerce victims into staying connected over video feeds "
-                "under simulated custody. They utilize temporary payment channels to siphon off security clearances."
+        num = len(texts)
+        blob = "\n".join(texts).lower()
+
+        # Detect operating patterns from the real content.
+        patterns = []
+        if any(w in blob for w in ["arrest", "police", "customs", "cbi", "custody", "narcotic"]):
+            patterns.append("Digital-arrest intimidation (impersonation of law enforcement)")
+        if any(w in blob for w in ["upi", "qr", "collect", "refund", "pin"]):
+            patterns.append("UPI collect-request / refund redirection")
+        if any(w in blob for w in ["kyc", "account", "suspend", "block", "netbanking", "otp"]):
+            patterns.append("KYC / credential-harvesting phishing")
+        if any(w in blob for w in ["electricity", "bill", "disconnect", "power"]):
+            patterns.append("Utility-disconnection payment pressure")
+        if not patterns:
+            patterns.append("Social-engineering credential harvest")
+
+        # Extract monetary amounts actually mentioned (INR / Rs / rupees).
+        amounts = []
+        for m in re.findall(r"(?:rs\.?|inr|rupees?)\s*([0-9][0-9,]{2,})", blob):
+            try:
+                amounts.append(int(m.replace(",", "")))
+            except ValueError:
+                continue
+        estimated_losses = float(sum(amounts)) if amounts else 0.0
+
+        distinct_phones = sorted(set(p for p in phones if p))
+        distinct_upis = sorted(set(u for u in upis if u))
+
+        parts = [
+            f"This case aggregates {num} linked complaint(s).",
+            f"Detected operating pattern(s): {', '.join(patterns)}.",
+        ]
+        if distinct_phones or distinct_upis:
+            frag = []
+            if distinct_phones:
+                frag.append(f"{len(distinct_phones)} distinct phone number(s) (e.g. {', '.join(distinct_phones[:3])})")
+            if distinct_upis:
+                frag.append(f"{len(distinct_upis)} UPI handle(s) (e.g. {', '.join(distinct_upis[:3])})")
+            parts.append("Recurring identifiers across the evidence: " + "; ".join(frag) + ".")
+        if amounts:
+            parts.append(
+                f"Amounts explicitly demanded in the evidence total approximately INR {estimated_losses:,.0f}."
             )
-        elif is_upi_refund:
-            scam_patterns.append("UPI Refund redirection link")
-            summary = (
-                "Investigation dossier tracks a UPI collect-request scam ring. Fraudsters distribute fake lottery screenshots "
-                "directing victims to scan QR codes or scan refund links, siphoning off funds upon UPI PIN entry."
-            )
-        else:
-            scam_patterns.append("Social engineering credentials harvest")
-            summary = "Case records track multi-incident phishing SMS and voice calls harvesting victim credentials."
+        summary = " ".join(parts)
 
         return {
             "summary": summary,
-            "primary_patterns": scam_patterns,
-            "estimated_losses": 45000.0 + len(texts)*5000.0
+            "primary_patterns": patterns,
+            "estimated_losses": estimated_losses,
         }
 
 investigation_agent = InvestigationAgent()

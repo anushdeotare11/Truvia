@@ -244,6 +244,34 @@ export default function InvestigationDetailPage() {
               )}
             </div>
           </div>
+
+          {/* Correlated complaints (share extracted entities with this case) */}
+          <div className="bg-surface-container border border-outline-variant rounded-xl overflow-hidden">
+            <div className="p-4 border-b border-outline-variant flex items-center gap-3">
+              <Icon name="account_tree" className="text-primary" />
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-on-surface">Correlated Complaints</h3>
+            </div>
+            <div className="divide-y divide-outline-variant/30 max-h-80 overflow-y-auto custom-scrollbar">
+              {(detail.correlated_reports ?? []).map((r) => (
+                <div key={r.id} className="p-4 hover:bg-surface-container-high/40 transition-colors">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-mono text-[11px] text-primary">#{shortId(r.id)}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-primary/10 text-primary">
+                      {r.shared_entities} shared {r.shared_entities === 1 ? "entity" : "entities"}
+                    </span>
+                  </div>
+                  <p className="text-body-sm text-on-surface-variant line-clamp-2">
+                    {r.cleaned_text || "No transcript available."}
+                  </p>
+                </div>
+              ))}
+              {(!detail.correlated_reports || detail.correlated_reports.length === 0) && (
+                <p className="p-4 text-on-surface-variant font-body-md">
+                  No correlated complaints found — this appears to be an isolated report.
+                </p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* RIGHT */}

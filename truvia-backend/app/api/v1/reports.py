@@ -1,10 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 from app.data.postgres_client import get_db
 from app.models.user import User
-from app.models.report import Report, Evidence
+from app.models.report import Report, Evidence, ThreatScore
+from datetime import datetime
+import csv
+import io
 from app.schemas.report import ReportOut
 from app.api import deps
 from app.data.storage_client import storage_client
@@ -106,36 +110,131 @@ async def submit_report(
     )
     return result.scalar_one()
 
+def _report_filter_conditions(
+    current_user, search, status_f, source_type, category,
+    score_min, score_max, date_from, date_to,
+):
+    """Shared WHERE conditions for the complaint table + CSV export (real narrowing)."""
+    conds = []
+    # Citizens are always restricted to their own reports.
+    if current_user.role not in ["officer", "admin"]:
+        conds.append(Report.user_id == current_user.id)
+    if search:
+        conds.append(Report.cleaned_text.ilike(f"%{search}%"))
+    if status_f:
+        conds.append(Report.status == status_f)
+    if source_type:
+        conds.append(Report.source_type == source_type)
+
+    # category + score range resolve against the report's CURRENT threat score.
+    ts_conds = [ThreatScore.is_current == True]
+    if category:
+        ts_conds.append(ThreatScore.scam_category == category)
+    if score_min is not None:
+        ts_conds.append(ThreatScore.threat_score >= score_min)
+    if score_max is not None:
+        ts_conds.append(ThreatScore.threat_score <= score_max)
+    if len(ts_conds) > 1:
+        conds.append(Report.id.in_(select(ThreatScore.report_id).where(and_(*ts_conds))))
+
+    if date_from:
+        try:
+            conds.append(Report.created_at >= datetime.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            conds.append(Report.created_at <= datetime.fromisoformat(date_to))
+        except ValueError:
+            pass
+    return conds
+
+
 @router.get("", response_model=List[ReportOut])
 async def list_reports(
     search: Optional[str] = None,
     status: Optional[str] = None,
     source_type: Optional[str] = None,
+    category: Optional[str] = None,
+    score_min: Optional[int] = None,
+    score_max: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
-    query = select(Report).options(
-        selectinload(Report.evidence_items),
-        selectinload(Report.threat_scores)
+    conds = _report_filter_conditions(
+        current_user, search, status, source_type, category,
+        score_min, score_max, date_from, date_to,
     )
-    
-    # Restrict citizens to only their reports
-    if current_user.role not in ["officer", "admin"]:
-        query = query.where(Report.user_id == current_user.id)
-        
-    if search:
-        query = query.where(Report.cleaned_text.ilike(f"%{search}%"))
-    if status:
-        query = query.where(Report.status == status)
-    if source_type:
-        query = query.where(Report.source_type == source_type)
-        
+    query = (
+        select(Report)
+        .options(selectinload(Report.evidence_items), selectinload(Report.threat_scores))
+        .where(and_(*conds)) if conds else
+        select(Report).options(selectinload(Report.evidence_items), selectinload(Report.threat_scores))
+    )
     query = query.order_by(Report.created_at.desc()).offset(offset).limit(limit)
     result = await db.execute(query)
+    return result.scalars().all()
+
+
+@router.get("/export")
+async def export_reports_csv(
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+    source_type: Optional[str] = None,
+    category: Optional[str] = None,
+    score_min: Optional[int] = None,
+    score_max: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    """Export the CURRENTLY-FILTERED complaint set as a real CSV (not a static file)."""
+    conds = _report_filter_conditions(
+        current_user, search, status, source_type, category,
+        score_min, score_max, date_from, date_to,
+    )
+    query = select(Report).options(selectinload(Report.threat_scores))
+    if conds:
+        query = query.where(and_(*conds))
+    query = query.order_by(Report.created_at.desc()).limit(5000)
+    result = await db.execute(query)
     reports = result.scalars().all()
-    return reports
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "Report ID", "Source Type", "Status", "Scam Category", "Threat Score",
+        "Severity", "Confidence", "Detected Language", "Created At", "Content",
+    ])
+    for r in reports:
+        ts = None
+        for t in (r.threat_scores or []):
+            if t.is_current:
+                ts = t
+                break
+        if ts is None and r.threat_scores:
+            ts = r.threat_scores[0]
+        writer.writerow([
+            str(r.id), r.source_type, r.status,
+            ts.scam_category if ts else "",
+            ts.threat_score if ts else "",
+            ts.severity_band if ts else "",
+            float(ts.confidence_score) if ts else "",
+            r.detected_language or "",
+            r.created_at.isoformat() if r.created_at else "",
+            (r.cleaned_text or "").replace("\n", " ").replace("\r", " "),
+        ])
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=truvia-complaints-export.csv"},
+    )
 
 @router.get("/{report_id}/status", status_code=status.HTTP_200_OK)
 async def get_report_status(
@@ -303,6 +402,42 @@ async def get_report_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+@router.post("/{report_id}/dismiss", status_code=status.HTTP_200_OK)
+async def dismiss_report(
+    report_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    """
+    Citizen (or officer) marks a report as reviewed/dismissed — e.g. a low-risk
+    result the citizen has read and is closing out. Persists status='dismissed'
+    so it survives refresh. An already-escalated report cannot be dismissed
+    (it is now an active case).
+    """
+    import uuid
+    try:
+        report_uuid = uuid.UUID(report_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
+
+    result = await db.execute(select(Report).where(Report.id == report_uuid))
+    report = result.scalar_one_or_none()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    if report.user_id != current_user.id and current_user.role not in ["officer", "admin"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if report.status == "escalated":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This report has been escalated to a case and cannot be dismissed.",
+        )
+
+    report.status = "dismissed"
+    await db.commit()
+    return {"status": "dismissed", "report_id": str(report.id)}
 
 @router.post("/{report_id}/escalate", status_code=status.HTTP_200_OK)
 async def escalate_report(
