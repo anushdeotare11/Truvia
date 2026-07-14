@@ -164,8 +164,10 @@ class EntityExtractorAgent:
                             )
                             session.add(new_rel)
 
-                # Update status to processed
-                report.status = "escalated"  # In Day 4 logic, escalated or processing is finished
+                # Entity extraction is an enrichment step — it must NOT change the
+                # report's lifecycle status. Escalation is an explicit user/officer action
+                # handled by the /escalate endpoint. Leave the status set by the threat
+                # evaluator (e.g. "scored") untouched.
                 await session.commit()
                 logger.info(f"Report {report_id}: extracted {len(saved_entities)} entities and linked relationship pairs")
                 

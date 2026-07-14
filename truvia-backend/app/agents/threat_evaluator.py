@@ -41,11 +41,24 @@ class ThreatEvaluatorAgent:
                     return {"status": "error", "message": "Report not found"}
 
                 text_content = report.cleaned_text or ""
-                if not text_content:
-                    logger.warning(f"Report {report_id} has empty cleaned text. Skipping threat evaluation.")
-                    # Give it a safe zero score
-                    score_val, band, cat = 0, "low", "unclassified"
-                    reasoning = {"reason": "Empty report content submitted"}
+                if not text_content.strip():
+                    logger.warning(f"Report {report_id} has empty cleaned text. Emitting explicit insufficient-content verdict.")
+                    # Explicit, honest "could not extract enough content" verdict — NOT a
+                    # silent no-op. The UI renders this as a real (zero) result with a clear
+                    # explanation instead of "the pipeline did not return a verdict".
+                    score_val, band, cat, confidence = 0, "low", "Insufficient Content", 0.0
+                    reasoning = {
+                        "key_indicators": [],
+                        "victim_instructions": [
+                            "We could not extract readable text from your upload.",
+                            "Try a clearer screenshot/recording, or paste the message text directly for analysis.",
+                        ],
+                        "risk_explanation": (
+                            "No readable content could be extracted from the submitted evidence, "
+                            "so a threat score could not be computed. This is not a safety verdict — "
+                            "please resubmit clearer content or paste the text."
+                        ),
+                    }
                     degraded = True
                 else:
                     # 2. Run analysis
@@ -67,7 +80,7 @@ class ThreatEvaluatorAgent:
                     confidence_score=confidence,
                     reasoning_json=reasoning,
                     degraded_mode=degraded,
-                    model_version="claude-3-5-sonnet" if not degraded else "local-rule-engine",
+                    model_version="gemini-2.5-flash" if not degraded else "local-rule-engine",
                     is_current=True
                 )
                 session.add(new_score)

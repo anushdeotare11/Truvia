@@ -120,29 +120,44 @@ class KnowledgeAgent:
 
     async def _generate_local_grounded_answer(self, query: str, citations: list) -> str:
         """
-        Generates grounded local answers based on matches.
+        Compose a grounded answer WITHOUT an LLM, using only the actually-retrieved
+        knowledge-base passages. The content varies per query because the retrieved
+        chunks vary — there is no hardcoded/canned advice appended. When nothing
+        relevant is retrieved, we say so honestly rather than inventing guidance.
         """
         if not citations:
             return (
-                "I couldn't find any specific official guidelines regarding your query in my database. "
-                "Please remember to never share your OTP, credit card PIN, or bank passwords with anyone. "
-                "If someone is demanding immediate payments over Skype or WhatsApp claiming to be 'Police' or 'Customs', "
-                "it is highly likely a scam. Report them to 1930 immediately."
+                "I don't have an official RBI / CERT-In / MHA advisory in my knowledge base "
+                "that directly answers that question. I can only answer from ingested official "
+                "guidance, so I'd rather not guess. If you believe you're facing fraud, you can "
+                "reach the national cybercrime helpline on 1930 or cybercrime.gov.in."
             )
 
-        # Build grounded response text
-        sources = [c["source"] for c in citations]
-        best_match = citations[0]
-        
-        answer_text = (
-            f"Based on our public safety records, I found guidelines from {', '.join(set(sources))}.\n\n"
-            f"According to the advisory [{best_match['source']}]:\n"
-            f"\"{best_match['excerpt']}...\"\n\n"
-            "Safety Action Plan:\n"
-            "1. NEVER scan a QR code to receive a refund. QR codes are only scanned to send payments.\n"
-            "2. If you are placed under online pressure or video call threat, disconnect immediately. Law enforcement never arrests citizens over Skype.\n"
-            "3. If funds were debited, notify your bank and report the fraud on the national portal (cybercrime.gov.in) within 2 hours."
+        # Present the most relevant official passages we actually retrieved, cited.
+        # De-duplicate on (source, excerpt) so repeated chunks don't pad the answer.
+        seen = set()
+        blocks = []
+        for c in citations:
+            excerpt = (c.get("excerpt") or "").strip()
+            if not excerpt:
+                continue
+            key = (c.get("source"), excerpt[:80])
+            if key in seen:
+                continue
+            seen.add(key)
+            blocks.append(f"[{c.get('source')}] {c.get('title')}:\n\"{excerpt}\"")
+
+        if not blocks:
+            return (
+                "I found related official guidance but couldn't read a usable excerpt from it. "
+                "Please refer to the cited source, and report suspected fraud on 1930 / cybercrime.gov.in."
+            )
+
+        sources = ", ".join(sorted({str(c.get("source")) for c in citations if c.get("source")}))
+        header = (
+            f"Here's the most relevant official guidance I found for your question "
+            f'("{query.strip()}") — from {sources}:'
         )
-        return answer_text
+        return header + "\n\n" + "\n\n".join(blocks)
 
 knowledge_agent = KnowledgeAgent()

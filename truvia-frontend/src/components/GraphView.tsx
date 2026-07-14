@@ -113,7 +113,7 @@ export function GraphView({
             x2={b.x}
             y2={b.y}
             stroke="url(#edgeGrad)"
-            strokeWidth={Math.min(3, 0.5 + e.weight * 0.5)}
+            strokeWidth={Math.min(3, 0.5 + (e.weight ?? 1) * 0.5)}
           />
         );
       })}

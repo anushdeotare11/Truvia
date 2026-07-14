@@ -12,6 +12,35 @@ from app.data.storage_client import storage_client
 
 logger = logging.getLogger("truvia.agents.input_processor")
 
+# ---------------------------------------------------------------------------
+# Lazy, process-wide singletons for the local (offline, no cloud key required)
+# OCR and STT engines. They are relatively expensive to initialise/load, so we
+# build them once on first use and reuse them across requests. All heavy calls
+# are dispatched via asyncio.to_thread so they never block the event loop.
+# ---------------------------------------------------------------------------
+_rapidocr_engine = None
+_whisper_model = None
+
+
+def _get_ocr_engine():
+    """Return a cached RapidOCR engine (bundled ONNX models, fully offline)."""
+    global _rapidocr_engine
+    if _rapidocr_engine is None:
+        from rapidocr_onnxruntime import RapidOCR
+        _rapidocr_engine = RapidOCR()
+        logger.info("Local RapidOCR engine initialised (offline OCR).")
+    return _rapidocr_engine
+
+
+def _get_whisper_model():
+    """Return a cached faster-whisper model (CPU int8). Downloads once, then cached."""
+    global _whisper_model
+    if _whisper_model is None:
+        from faster_whisper import WhisperModel
+        _whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+        logger.info("Local faster-whisper model initialised (offline ASR).")
+    return _whisper_model
+
 class InputProcessorAgent:
     def __init__(self):
         self.api_key = settings.GOOGLE_API_KEY
@@ -23,6 +52,28 @@ class InputProcessorAgent:
         else:
             self.client = None
             logger.warning("No Google API key configured. Running InputProcessorAgent in degraded mock mode.")
+
+    async def warm_engines(self) -> None:
+        """
+        Preload the local OCR and STT engines so the FIRST citizen upload does not
+        pay the one-time model-load/download latency (which can otherwise exceed the
+        frontend's result-polling window and surface as a spurious "no verdict").
+        Runs off the event loop; failures are non-fatal (engines lazy-load on demand).
+        """
+        def _load():
+            try:
+                _get_ocr_engine()
+            except Exception as e:
+                logger.warning(f"OCR engine warmup skipped: {e}")
+            try:
+                _get_whisper_model()
+            except Exception as e:
+                logger.warning(f"ASR engine warmup skipped: {e}")
+        try:
+            await asyncio.to_thread(_load)
+            logger.info("Local OCR/STT engines warmed up.")
+        except Exception as e:
+            logger.warning(f"Engine warmup failed (will lazy-load on demand): {e}")
 
     async def process_report(self, report_id: str) -> dict:
         """
@@ -102,9 +153,17 @@ class InputProcessorAgent:
                         detected_lang = lang
 
                 # 3. Combine extractions
-                cleaned_text = "\n\n".join(extractions).strip()
+                cleaned_text = "\n\n".join(t for t in extractions if t).strip()
                 if not cleaned_text and report.cleaned_text:
                     cleaned_text = report.cleaned_text  # Fallback to direct input text
+
+                # For pasted text (or when we fell back to the directly submitted text),
+                # there is no OCR/ASR confidence to worry about — run real language
+                # detection so downstream analysis and the UI reflect the true language.
+                if report.source_type == "text" or not evidence_list:
+                    if cleaned_text:
+                        detected_lang = await self._detect_language_local(cleaned_text)
+                        input_confidence = 1.0
 
                 # 4. Check confidence against threshold
                 threshold = (
@@ -188,16 +247,51 @@ class InputProcessorAgent:
                 )
 
             except Exception as e:
-                logger.error(f"Gemini Multimodal OCR failed: {str(e)}. Falling back to degraded mock.")
+                logger.error(f"Gemini Multimodal OCR failed: {str(e)}. Falling back to local OCR engine.")
 
-        # Degraded mode fallback
-        # Simulate OCR response based on dummy bytes or file context
-        mock_text = (
-            "URGENT: Your bank account has been compromised. "
-            "Please transfer 50,000 INR to UPI address: safevault@okaxis immediately to secure your funds. "
-            "Failure to comply will result in immediate arrest by Cyber Police."
+        # Real on-device OCR (no cloud key required) via RapidOCR (bundled ONNX models).
+        local_text, local_conf = await self._local_ocr(image_bytes)
+        if local_text and local_text.strip():
+            lang = await self._detect_language_local(local_text)
+            return local_text.strip(), lang, float(local_conf)
+
+        # Genuinely no readable text could be extracted. Do NOT fabricate content —
+        # return an empty, zero-confidence result. The pipeline still proceeds to
+        # scoring, which yields an explicit "insufficient content" verdict.
+        logger.warning(
+            "OCR produced no readable text for this image (empty extraction). "
+            "Returning empty, zero-confidence result."
         )
-        return mock_text, "en", 0.90
+        return "", "und", 0.0
+
+    async def _local_ocr(self, image_bytes: bytes) -> tuple[str, float]:
+        """
+        Real on-device OCR using RapidOCR (ONNX). Returns (text, mean_confidence).
+        Never fabricates content — returns ("", 0.0) if nothing is detected or the
+        engine is unavailable.
+        """
+        def _run() -> tuple[str, float]:
+            try:
+                import io
+                import numpy as np
+                import PIL.Image
+
+                engine = _get_ocr_engine()
+                image = PIL.Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                arr = np.array(image)
+                result, _elapse = engine(arr)
+                if not result:
+                    return "", 0.0
+                texts = [row[1] for row in result]
+                confs = [float(row[2]) for row in result]
+                joined = " ".join(t for t in texts if t).strip()
+                mean_conf = (sum(confs) / len(confs)) if confs else 0.0
+                return joined, mean_conf
+            except Exception as e:
+                logger.error(f"Local RapidOCR failed: {str(e)}")
+                return "", 0.0
+
+        return await asyncio.to_thread(_run)
 
     async def _asr_audio(self, audio_bytes: bytes, extension: str, file_ref: str = "") -> tuple[str, str, float]:
         """
@@ -234,40 +328,60 @@ class InputProcessorAgent:
             except Exception as e:
                 logger.error(f"OpenAI Whisper API call failed: {str(e)}")
 
-        # Content-aware dynamic mock fallback
-        ref_lower = file_ref.lower()
-        if "refund" in ref_lower or "upi" in ref_lower or "prize" in ref_lower or "lottery" in ref_lower:
-            mock_text = (
-                "Congratulation! You won twenty five thousand rupees prize from KBC lottery. "
-                "To transfer prize in bank account, scan QR code refund link. "
-                "Open UPI app, scan link, enter your secret UPI PIN to receive money instantly."
-            )
-            lang = "hinglish"
-        elif "bill" in ref_lower or "electricity" in ref_lower or "power" in ref_lower:
-            mock_text = (
-                "Alert: Your electricity bill is unpaid. Power supply will be disconnected tonight at nine thirty. "
-                "Immediately call electricity officer cell at nine eight seven six five four three two one zero "
-                "and settle dues via UPI to avoid cut."
-            )
-            lang = "en"
-        elif "kyc" in ref_lower or "bank" in ref_lower or "account" in ref_lower or "card" in ref_lower:
-            mock_text = (
-                "Dear customer, your bank account is blocked. Please update KYC immediately. "
-                "Call helpline number or go to security link update-kyc-verify.com. "
-                "Verify netbanking password and OTP to reactivate account."
-            )
-            lang = "en"
-        else:
-            # Default to digital arrest
-            mock_text = (
-                "Hello, this is officer Amit Kumar calling from the Delhi Police Headquarters. "
-                "We have found a package in your name containing illegal substances. "
-                "You are under digital arrest. Do not disconnect this call or you will face immediate custody. "
-                "Verify your identity by paying 2,50,000 rupees to the security account."
-            )
-            lang = "hinglish"
+        # Real on-device speech-to-text (no cloud key required) via faster-whisper.
+        local_text, local_lang, local_conf = await self._local_asr(audio_bytes, extension)
+        if local_text and local_text.strip():
+            return local_text.strip(), local_lang, float(local_conf)
 
-        return mock_text, lang, 0.55  # Low-confidence threshold flag (< 0.60) for testing alerts
+        # Genuinely no speech could be transcribed. Do NOT fabricate a transcript.
+        # The pipeline still proceeds to scoring -> explicit "insufficient content" verdict.
+        logger.warning(
+            "ASR produced no transcript for this audio (empty result). "
+            "Returning empty, zero-confidence result."
+        )
+        return "", "und", 0.0
+
+    async def _local_asr(self, audio_bytes: bytes, extension: str) -> tuple[str, str, float]:
+        """
+        Real on-device transcription using faster-whisper. faster-whisper bundles
+        audio decoding (PyAV), so mp3/m4a/ogg/wav all work without system ffmpeg.
+        Returns (transcript, language, confidence). Never fabricates content.
+        """
+        def _run() -> tuple[str, str, float]:
+            import os
+            import math
+            import tempfile
+
+            tmp_path = None
+            try:
+                model = _get_whisper_model()
+                suffix = extension if extension else ".wav"
+                with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                    tmp.write(audio_bytes)
+                    tmp_path = tmp.name
+
+                segments, info = model.transcribe(tmp_path, beam_size=1)
+                texts = []
+                logprobs = []
+                for seg in segments:
+                    texts.append(seg.text)
+                    logprobs.append(seg.avg_logprob)
+                transcript = " ".join(t.strip() for t in texts).strip()
+                # Convert mean token log-probability into a rough 0..1 confidence.
+                conf = math.exp(sum(logprobs) / len(logprobs)) if logprobs else 0.0
+                lang = info.language or "en"
+                return transcript, lang, float(min(max(conf, 0.0), 0.99))
+            except Exception as e:
+                logger.error(f"Local faster-whisper ASR failed: {str(e)}")
+                return "", "und", 0.0
+            finally:
+                if tmp_path:
+                    try:
+                        os.unlink(tmp_path)
+                    except Exception:
+                        pass
+
+        return await asyncio.to_thread(_run)
 
     async def _detect_language_local(self, text: str) -> str:
         """

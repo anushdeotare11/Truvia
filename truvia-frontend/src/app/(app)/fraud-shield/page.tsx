@@ -60,7 +60,10 @@ export default function FraudShieldPage() {
 
   async function pollReport(id: string): Promise<Report> {
     // Poll until scored/failed/escalated or a threat score is attached.
-    for (let i = 0; i < 20; i++) {
+    // Audio transcription (speech-to-text) can take noticeably longer than OCR/text,
+    // so we allow a generous window (~90s) before giving up, to avoid prematurely
+    // showing a "no verdict" state while the backend is still transcribing/scoring.
+    for (let i = 0; i < 60; i++) {
       const r = await api.get<Report>(`/reports/${id}`);
       if (["scored", "escalated", "failed", "dismissed"].includes(r.status) || r.threat_scores.length > 0) {
         return r;

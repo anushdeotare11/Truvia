@@ -94,7 +94,9 @@ async def test_input_processor(db_session):
     res = await input_processor_agent.process_report(str(report.id))
     assert "cleaned_text" in res
     
-    # Check dynamic ASR fallback logic with "refund" keyword in filename
+    # Honest degraded ASR: with no OPENAI_API_KEY configured, the processor must NOT
+    # fabricate a transcript from the filename. It returns an empty, low-confidence
+    # result so the pipeline can surface the degraded state truthfully.
     ev_audio = Evidence(
         id=uuid.uuid4(),
         report_id=report.id,
@@ -104,12 +106,27 @@ async def test_input_processor(db_session):
     )
     db_session.add(ev_audio)
     await db_session.commit()
-    
-    # Test ASR directly
-    text_out, lang, conf = await input_processor_agent._asr_audio(b"fake_bytes", ".mp3", ev_audio.file_ref)
-    assert "refund" in text_out.lower() or "prize" in text_out.lower()
-    assert lang == "hinglish"
-    assert conf == 0.55
+
+    # Test ASR directly (no key configured in the test environment)
+    import app.agents.input_processor as ip_module
+    if ip_module.input_processor_agent.client is None:  # degraded mode
+        text_out, lang, conf = await input_processor_agent._asr_audio(b"fake_bytes", ".mp3", ev_audio.file_ref)
+        # No fabricated scam content derived from the filename keywords.
+        assert "refund" not in text_out.lower()
+        assert "prize" not in text_out.lower()
+        assert text_out == ""
+        assert conf == 0.0
+
+    # Honest degraded OCR: garbage bytes with no OCR provider must yield an empty,
+    # zero-confidence result rather than canned "digital arrest" text.
+    if ip_module.input_processor_agent.client is None:
+        ocr_text, ocr_lang, ocr_conf = await input_processor_agent._ocr_image(b"not-a-real-image", ".png")
+        assert "arrest" not in ocr_text.lower()
+        assert "upi" not in ocr_text.lower()
+        # Either empty (no engine) or real text from a locally installed Tesseract —
+        # never fabricated. If empty, confidence must be 0.0.
+        if ocr_text == "":
+            assert ocr_conf == 0.0
 
 # 3. Agent 2: Threat Evaluator tests
 @pytest.mark.asyncio
@@ -197,6 +214,12 @@ async def test_entity_extractor(db_session):
     res = await entity_extractor_agent.extract_entities(str(report.id))
     assert "extracted_count" in res
     assert res["extracted_count"] >= 2
+
+    # Entity extraction must NOT auto-escalate the report; escalation is an explicit
+    # user/officer action. The status set before extraction ("processing") is preserved.
+    await db_session.refresh(report)
+    assert report.status != "escalated"
+    assert report.status == "processing"
 
     # Query entities from DB
     ent_res = await db_session.execute(

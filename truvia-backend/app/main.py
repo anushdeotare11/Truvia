@@ -42,7 +42,24 @@ app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Predictive Thr
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting up Truvia Digital Public Safety Platform API...")
-    
+
+    # Surface which AI credentials/services are configured vs. degraded (honest, no fabrication).
+    try:
+        from app.core.config_check import log_config_check
+        log_config_check()
+    except Exception as e:
+        logger.error(f"Config check failed: {str(e)}")
+
+    # Warm the local OCR/STT engines in the background so the first citizen upload
+    # (especially audio) doesn't pay one-time model load/download latency and time out
+    # the frontend's result polling. Non-blocking — startup proceeds immediately.
+    try:
+        import asyncio
+        from app.agents.input_processor import input_processor_agent
+        asyncio.create_task(input_processor_agent.warm_engines())
+    except Exception as e:
+        logger.error(f"Could not schedule engine warmup: {str(e)}")
+
     # Auto-bootstrap SQLite tables if running in SQLite fallback mode
     from app.data.postgres_client import check_and_create_tables
     try:
@@ -66,6 +83,19 @@ async def shutdown_event():
 @app.get("/healthz", status_code=status.HTTP_200_OK, tags=["System Health"])
 async def healthz():
     return {"status": "healthy"}
+
+@app.get("/api/v1/config-status", status_code=status.HTTP_200_OK, tags=["System Health"])
+async def config_status():
+    """Report which AI capabilities are configured vs. running in degraded/local mode."""
+    from app.core.config_check import get_capability_report
+    report = get_capability_report()
+    return {
+        "capabilities": report,
+        "fully_degraded": not any(
+            c["configured"] and c["provider"] not in (None, "local-rule-engine", "local-grounded-answers")
+            for c in report.values()
+        ),
+    }
 
 @app.get("/readyz", status_code=status.HTTP_200_OK, tags=["System Health"])
 async def readyz():

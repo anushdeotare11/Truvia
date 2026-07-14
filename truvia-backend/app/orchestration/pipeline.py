@@ -12,29 +12,33 @@ async def run_pipeline(report_id: str) -> dict:
     """
     Orchestrates the entire intake analysis workflow:
     Agent 1 (OCR/Speech) -> Agent 2 (Threat Evaluator) -> Agent 4 (Entity Extractor)
-    
-    If Agent 1 flags low confidence, the pipeline halts until the citizen verifies the text.
+
+    Low OCR/ASR confidence is a *caveat flag*, not a stop condition: the citizen
+    must always receive a verdict. We therefore always continue to scoring, and the
+    low_confidence_flag is surfaced to the UI so the result is shown with a caveat.
+    If extraction produced no readable text at all, Agent 2 still returns an explicit
+    "insufficient content" verdict rather than silently producing nothing.
     """
     logger.info(f"Starting analysis pipeline for report {report_id}")
-    
+
     # Step 1: Ingest & Extract Text (Agent 1)
     agent1_result = await input_processor_agent.process_report(report_id)
-    
+
     if agent1_result.get("low_confidence_flag"):
-        logger.warning(f"Pipeline halted for report {report_id} due to low confidence. Awaiting citizen verification.")
-        return {
-            "status": "halted_for_verification",
-            "report_id": report_id,
-            "agent1": agent1_result
-        }
-        
-    # Step 2: Evaluate Threat (Agent 2)
-    agent2_result = await run_pipeline_continuation(report_id)
+        logger.warning(
+            f"Report {report_id} flagged low-confidence "
+            f"(input_confidence={agent1_result.get('input_confidence')}). "
+            "Continuing to scoring with a caveat rather than halting."
+        )
+
+    # Step 2+: Always evaluate threat, extract entities, index graph.
+    continuation_result = await run_pipeline_continuation(report_id)
     return {
         "status": "completed",
         "report_id": report_id,
+        "low_confidence_flag": agent1_result.get("low_confidence_flag", False),
         "agent1": agent1_result,
-        "threat_evaluation": agent2_result
+        "threat_evaluation": continuation_result,
     }
 
 async def run_pipeline_continuation(report_id: str) -> dict:
