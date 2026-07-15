@@ -55,13 +55,13 @@ def get_capability_report() -> Dict[str, Dict[str, object]]:
         },
         "llm_threat_reasoning": {
             "configured": gemini_ok,
-            "provider": "gemini-2.5-flash" if gemini_ok else "local-rule-engine",
+            "provider": "gemini-2.0-flash" if gemini_ok else "local-rule-engine",
             "missing": None if gemini_ok
             else "Set GOOGLE_API_KEY to enable LLM-based structured reasoning (rule engine used meanwhile).",
         },
         "rag_chat_llm": {
             "configured": gemini_ok,
-            "provider": "gemini-1.5-flash" if gemini_ok else "local-grounded-answers",
+            "provider": "gemini-2.0-flash" if gemini_ok else "local-grounded-answers",
             "missing": None if gemini_ok
             else "Set GOOGLE_API_KEY for LLM-composed answers (grounded lexical answers used meanwhile).",
         },

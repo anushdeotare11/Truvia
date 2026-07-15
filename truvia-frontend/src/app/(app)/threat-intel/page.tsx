@@ -6,7 +6,7 @@ import { Icon } from "@/components/Icon";
 import { PageLoader } from "@/components/AppShell";
 import { GraphView } from "@/components/GraphView";
 import { api } from "@/lib/api";
-import type { GraphOverview, EntityDetails } from "@/lib/types";
+import type { GraphOverview, EntityDetails, FraudRing } from "@/lib/types";
 import { severityBadge, formatDateTime } from "@/lib/format";
 
 function ThreatIntelInner() {
@@ -18,12 +18,17 @@ function ThreatIntelInner() {
   const [selectedId, setSelectedId] = useState<string | null>(initialEntity);
   const [entity, setEntity] = useState<EntityDetails | null>(null);
   const [entityLoading, setEntityLoading] = useState(false);
+  const [rings, setRings] = useState<FraudRing[]>([]);
 
   useEffect(() => {
     (async () => {
       try {
-        const g = await api.get<GraphOverview>("/graph/overview");
+        const [g, ringsData] = await Promise.all([
+          api.get<GraphOverview>("/graph/overview"),
+          api.get<FraudRing[]>("/graph/rings").catch(() => [] as FraudRing[]),
+        ]);
         setGraph(g);
+        setRings(ringsData);
         if (!selectedId && g.nodes.length > 0) {
           const top = [...g.nodes].sort((a, b) => b.risk_score - a.risk_score)[0];
           setSelectedId(top.id);
@@ -211,6 +216,38 @@ function ThreatIntelInner() {
             </>
           )}
         </section>
+
+        {/* Fraud Rings Panel */}
+        {rings.length > 0 && (
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-md mt-stack-lg">
+            <div className="flex items-center gap-stack-sm mb-stack-md">
+              <Icon name="hub" className="text-error" />
+              <h3 className="font-headline-sm text-[14px]">Detected Fraud Rings ({rings.length})</h3>
+            </div>
+            <div className="space-y-stack-sm max-h-64 overflow-y-auto custom-scrollbar">
+              {rings.map((ring) => (
+                <div key={ring.ring_id} className="bg-surface-container-high/50 rounded-lg p-stack-sm border border-outline-variant/30">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-label-md text-on-surface font-mono text-[11px]">
+                      Ring #{ring.ring_id}
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                      ring.aggregate_risk >= 70 ? "bg-error/10 text-error" :
+                      ring.aggregate_risk >= 40 ? "bg-warning/10 text-warning" : "bg-primary/10 text-primary"
+                    }`}>
+                      Risk: {ring.aggregate_risk.toFixed(0)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-stack-sm text-[10px] text-on-surface-variant">
+                    <span>{ring.member_count} members</span>
+                    <span>•</span>
+                    <span>{ring.entities.slice(0, 3).map(e => e.value).join(", ")}{ring.entities.length > 3 ? "..." : ""}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

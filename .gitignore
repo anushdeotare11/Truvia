@@ -46,12 +46,8 @@ htmlcov/
 server_err.log
 server_out.log
 
-# virtualenv / virtual environments
-venv/
-.venv/
-env/
-.env/
-ENV/
+
+
 
 # Node.js
 node_modules/
@@ -64,12 +60,28 @@ yarn-error.log*
 .next/
 out/
 
-# Environment files (credentials)
-.env
-.env.local
-.env.*.local
-*.env
+
+
 
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+truvia-backend/venv/
+
+# Local env files
+.env
+.env.local
+truvia-backend/.env
+
+# Local storage and evidence
+storage/
+truvia-backend/storage/
+
+# TypeScript build info
+*.tsbuildinfo

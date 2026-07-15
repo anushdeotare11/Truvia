@@ -225,6 +225,95 @@ async def get_case_details(
         "correlated_reports": correlated,
     }
 
+@router.get("/{case_id}/evidence-timeline", status_code=status.HTTP_200_OK)
+async def get_evidence_timeline(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(deps.require_officer),
+):
+    """
+    Compiles a chronological timeline of events for a case: report submissions,
+    case creation, officer assignments, package generation, and audit logs.
+    """
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid Case UUID format")
+
+    # Verify case exists
+    case_result = await db.execute(select(Case).where(Case.id == case_uuid))
+    case = case_result.scalar_one_or_none()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    events: List[Dict[str, Any]] = []
+
+    # 1. Case creation event
+    if case.created_at:
+        events.append({
+            "event_type": "case_created",
+            "description": f"Case {case.case_number} created ({case.case_type})",
+            "timestamp": case.created_at.isoformat(),
+        })
+
+    # 2. Report submission events (via case_reports join)
+    reports_result = await db.execute(
+        select(Report)
+        .join(CaseReport, CaseReport.report_id == Report.id)
+        .where(CaseReport.case_id == case_uuid)
+    )
+    for report in reports_result.scalars().all():
+        if report.created_at:
+            events.append({
+                "event_type": "report_submitted",
+                "description": f"Report submitted ({report.source_type}) - ID: {str(report.id)[:8]}",
+                "timestamp": report.created_at.isoformat(),
+            })
+
+    # 3. Officer assignment events
+    assignments_result = await db.execute(
+        select(OfficerAssignment).where(OfficerAssignment.case_id == case_uuid)
+    )
+    for assignment in assignments_result.scalars().all():
+        if assignment.assigned_at:
+            events.append({
+                "event_type": "officer_assigned",
+                "description": f"Officer assigned to case",
+                "timestamp": assignment.assigned_at.isoformat(),
+            })
+
+    # 4. Intelligence package generation events
+    packages_result = await db.execute(
+        select(IntelligencePackage).where(IntelligencePackage.case_id == case_uuid)
+    )
+    for pkg in packages_result.scalars().all():
+        if pkg.generated_at:
+            events.append({
+                "event_type": "package_generated",
+                "description": f"Intelligence package generated ({pkg.package_type}, v{pkg.version})",
+                "timestamp": pkg.generated_at.isoformat(),
+            })
+
+    # 5. Audit log events for this case
+    audit_result = await db.execute(
+        select(AuditLog)
+        .where(AuditLog.entity_id == case_uuid)
+        .where(AuditLog.entity_type == "cases")
+    )
+    for log in audit_result.scalars().all():
+        if log.created_at:
+            events.append({
+                "event_type": "audit_log",
+                "description": f"{log.action} ({log.actor_type})",
+                "timestamp": log.created_at.isoformat(),
+            })
+
+    # Sort chronologically ascending
+    events.sort(key=lambda e: e["timestamp"])
+
+    return events
+
+
 @router.post("/{case_id}/assign", status_code=status.HTTP_200_OK)
 async def assign_case(
     case_id: str,

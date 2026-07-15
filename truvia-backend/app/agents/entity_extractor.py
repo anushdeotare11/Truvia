@@ -12,6 +12,13 @@ PHONE_REGEX = re.compile(r'(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\
 UPI_REGEX = re.compile(r'\b[a-zA-Z0-9.\-_]{2,50}@[a-zA-Z]{2,20}\b')
 EMAIL_REGEX = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b')
 URL_REGEX = re.compile(r'\bhttps?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}\b')
+IFSC_REGEX = re.compile(r'\b[A-Z]{4}0[A-Z0-9]{6}\b')
+IP_REGEX = re.compile(r'\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b')
+BANK_ACCOUNT_REGEX = re.compile(r'\b\d{9,18}\b')
+
+ORG_KEYWORDS = ["cbi", "rbi", "police", "trai", "customs", "income tax", "npci",
+                "sbi", "hdfc", "icici", "reserve bank", "enforcement directorate",
+                "cyber cell", "narcotics"]
 
 class EntityExtractorAgent:
     async def extract_entities(self, report_id: str) -> dict:
@@ -77,6 +84,50 @@ class EntityExtractorAgent:
                         "raw_value": url,
                         "normalized_value": domain.lower().strip()
                     })
+
+                # E. IFSC Codes
+                ifscs = IFSC_REGEX.findall(text)
+                for ifsc in ifscs:
+                    extracted_items.append({
+                        "type": "ifsc",
+                        "raw_value": ifsc,
+                        "normalized_value": ifsc.upper()
+                    })
+
+                # F. IP Addresses
+                ips = IP_REGEX.findall(text)
+                for ip in ips:
+                    extracted_items.append({
+                        "type": "ip",
+                        "raw_value": ip,
+                        "normalized_value": ip.strip()
+                    })
+
+                # G. Bank Account Numbers (9-18 digits, excluding phone numbers already matched)
+                phone_normalized_values = {item["normalized_value"] for item in extracted_items if item["type"] == "phone"}
+                bank_accounts = BANK_ACCOUNT_REGEX.findall(text)
+                for acct in bank_accounts:
+                    digits = acct.strip()
+                    # Skip if already captured as a phone number (10 digits ending)
+                    if len(digits) >= 9 and len(digits) <= 18:
+                        # Avoid duplicating phone numbers
+                        normalized_phone_check = digits[-10:] if len(digits) >= 10 else digits
+                        if normalized_phone_check not in phone_normalized_values and digits not in phone_normalized_values:
+                            extracted_items.append({
+                                "type": "bank_account",
+                                "raw_value": acct,
+                                "normalized_value": digits
+                            })
+
+                # H. Organization/Government Impersonation Names
+                text_lower = text.lower()
+                for org_kw in ORG_KEYWORDS:
+                    if org_kw in text_lower:
+                        extracted_items.append({
+                            "type": "org",
+                            "raw_value": org_kw.title(),
+                            "normalized_value": org_kw.lower().strip()
+                        })
 
                 # De-duplicate local list
                 seen = set()

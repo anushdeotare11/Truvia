@@ -36,6 +36,8 @@ class ReportOut(BaseModel):
     input_confidence: Optional[float] = None
     low_confidence_flag: bool
     status: str
+    city: Optional[str] = None
+    pipeline_stage: Optional[str] = None
     created_at: datetime
     evidence_items: List[EvidenceOut] = []
     threat_scores: List[ThreatScoreOut] = []

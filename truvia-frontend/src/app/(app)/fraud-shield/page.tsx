@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, FormEvent } from "react";
 import { Icon } from "@/components/Icon";
 import { RiskGauge } from "@/components/RiskGauge";
+import { ProcessingStepper } from "@/components/ProcessingStepper";
 import { api, ApiError } from "@/lib/api";
 import type { Report, ChatResponse, Citation } from "@/lib/types";
 import { severityBadge, severityText, reportTitle, formatDateTime } from "@/lib/format";
@@ -26,6 +27,7 @@ export default function FraudShieldPage() {
   const [escalated, setEscalated] = useState<{ caseId: string } | null>(null);
   const [dismissing, setDismissing] = useState(false);
   const [history, setHistory] = useState<Report[]>([]);
+  const [pipelineStage, setPipelineStage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Chat state
@@ -65,8 +67,17 @@ export default function FraudShieldPage() {
     // so we allow a generous window (~90s) before giving up, to avoid prematurely
     // showing a "no verdict" state while the backend is still transcribing/scoring.
     for (let i = 0; i < 60; i++) {
+      // Fetch lightweight status to update the stepper
+      try {
+        const statusRes = await api.get<{ id: string; status: string; pipeline_stage: string | null }>(`/reports/${id}/status`);
+        setPipelineStage(statusRes.pipeline_stage);
+      } catch {
+        /* status endpoint may not be available, continue with full poll */
+      }
+
       const r = await api.get<Report>(`/reports/${id}`);
       if (["scored", "escalated", "failed", "dismissed"].includes(r.status) || r.threat_scores.length > 0) {
+        setPipelineStage("completed");
         return r;
       }
       await new Promise((res) => setTimeout(res, 1500));
@@ -96,13 +107,16 @@ export default function FraudShieldPage() {
         form.append("files", file);
       }
       const created = await api.postForm<Report>("/reports/submit", form);
+      setPipelineStage("ingesting");
       const final = created.threat_scores.length > 0 ? created : await pollReport(created.id);
       setReport(final);
+      setPipelineStage(null);
       loadHistory();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Analysis failed. Please try again.");
     } finally {
       setAnalyzing(false);
+      setPipelineStage(null);
     }
   }
 
@@ -269,6 +283,13 @@ export default function FraudShieldPage() {
               </button>
             </div>
           </section>
+
+          {/* Processing stepper — visible during analysis */}
+          {analyzing && (
+            <div className="col-span-12 p-stack-md bg-surface-container-lowest border border-outline-variant rounded-xl">
+              <ProcessingStepper stage={pipelineStage} />
+            </div>
+          )}
 
           {/* Result */}
           <section className="col-span-12 xl:col-span-5">

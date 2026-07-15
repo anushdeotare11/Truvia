@@ -18,6 +18,8 @@ class Report(Base):
     input_confidence = Column(Numeric(4, 3), nullable=True)
     low_confidence_flag = Column(Boolean, nullable=False, default=False)
     status = Column(String(50), nullable=False, default="submitted")  # submitted, processing, scored, escalated, dismissed, failed
+    city = Column(String(100), nullable=True)
+    pipeline_stage = Column(String(50), nullable=True)  # ingesting, extracting_text, evaluating_threat, extracting_entities, indexing_graph, completed
     
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())

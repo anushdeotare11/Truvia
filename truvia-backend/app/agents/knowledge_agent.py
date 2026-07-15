@@ -13,18 +13,24 @@ class KnowledgeAgent:
         self.api_key = settings.GOOGLE_API_KEY
         if self.api_key and "your-google-key" not in self.api_key and len(self.api_key) > 10:
             genai.configure(api_key=self.api_key)
-            self.client = genai.GenerativeModel("gemini-1.5-flash")
+            self.client = genai.GenerativeModel("gemini-2.0-flash")
             logger.info("Initialized KnowledgeAgent with Google Gemini API client")
         else:
             self.client = None
             logger.warning("No Google API key configured. Running KnowledgeAgent in degraded local mode.")
 
-    async def answer_query(self, session: AsyncSession, query_text: str) -> dict:
+    async def answer_query(self, session: AsyncSession, query_text: str, report_id=None) -> dict:
         """
         Main entry point for Agent 3. Retrieves relevant regulatory chunks
         using pgvector and generates a grounded response with citations.
+        When report_id is provided, includes report context (scam category, severity, entities).
         """
         try:
+            # 0. Build report context if report_id is provided
+            report_context_block = ""
+            if report_id is not None:
+                report_context_block = await self._build_report_context(session, report_id)
+
             # 1. Query vector database for similar chunks
             # Cosine similarity threshold is 0.25 to accommodate local deterministic embedder
             matched_chunks = await search_similar_chunks(
@@ -70,6 +76,10 @@ class KnowledgeAgent:
 
             context_block = "\n\n".join(context_texts)
 
+            # Prepend report context if available
+            if report_context_block:
+                context_block = report_context_block + "\n\n" + context_block if context_block else report_context_block
+
             # 3. Generate Answer
             if self.client and context_block:
                 try:
@@ -95,6 +105,62 @@ class KnowledgeAgent:
                 "answer": fallback,
                 "citations": []
             }
+
+    async def _build_report_context(self, session: AsyncSession, report_id) -> str:
+        """
+        Fetches report details, latest threat score, and linked entities
+        to build a context block for report-scoped chat.
+        """
+        from app.models.report import Report, ThreatScore, Entity, ReportEntity
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        try:
+            # Fetch the report
+            report_result = await session.execute(
+                select(Report).where(Report.id == report_id)
+            )
+            report = report_result.scalar_one_or_none()
+            if not report:
+                return ""
+
+            # Fetch the latest ThreatScore (is_current=True)
+            ts_result = await session.execute(
+                select(ThreatScore).where(
+                    ThreatScore.report_id == report_id,
+                    ThreatScore.is_current == True
+                ).order_by(ThreatScore.created_at.desc()).limit(1)
+            )
+            threat_score_record = ts_result.scalar_one_or_none()
+
+            # Fetch linked entities via ReportEntity join
+            re_result = await session.execute(
+                select(Entity).join(
+                    ReportEntity, ReportEntity.entity_id == Entity.id
+                ).where(ReportEntity.report_id == report_id)
+            )
+            entities = re_result.scalars().all()
+
+            # Build context block
+            parts = ["[Report Context]"]
+
+            if threat_score_record:
+                parts.append(f"Scam Category: {threat_score_record.scam_category}")
+                parts.append(f"Severity: {threat_score_record.severity_band}")
+                parts.append(f"Threat Score: {threat_score_record.threat_score}/100")
+            
+            if entities:
+                entity_values = ", ".join(e.raw_value for e in entities)
+                parts.append(f"Extracted Entities: {entity_values}")
+
+            # Only return if we actually have meaningful context beyond the header
+            if len(parts) > 1:
+                return "\n".join(parts)
+            return ""
+
+        except Exception as e:
+            logger.warning(f"Failed to build report context for report_id={report_id}: {e}")
+            return ""
 
     async def _generate_llm_answer(self, query: str, context: str) -> str:
         """

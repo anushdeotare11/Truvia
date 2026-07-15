@@ -14,7 +14,7 @@ class ThreatEvaluatorAgent:
         self.api_key = settings.GOOGLE_API_KEY
         if self.api_key and "your-google-key" not in self.api_key and len(self.api_key) > 10:
             genai.configure(api_key=self.api_key)
-            self.client = genai.GenerativeModel("gemini-2.5-flash")
+            self.client = genai.GenerativeModel("gemini-2.0-flash")
             logger.info("Initialized ThreatEvaluatorAgent with Google Gemini API client")
         else:
             self.client = None
@@ -80,7 +80,7 @@ class ThreatEvaluatorAgent:
                     confidence_score=confidence,
                     reasoning_json=reasoning,
                     degraded_mode=degraded,
-                    model_version="gemini-2.5-flash" if not degraded else "local-rule-engine",
+                    model_version="gemini-2.0-flash" if not degraded else "local-rule-engine",
                     is_current=True
                 )
                 session.add(new_score)

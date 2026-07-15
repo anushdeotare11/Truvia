@@ -262,6 +262,7 @@ async def get_report_status(
     return {
         "id": str(report.id),
         "status": report.status,
+        "pipeline_stage": report.pipeline_stage,
         "low_confidence_flag": report.low_confidence_flag,
         "input_confidence": float(report.input_confidence) if report.input_confidence else None
     }

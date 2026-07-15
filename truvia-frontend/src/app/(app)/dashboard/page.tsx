@@ -5,6 +5,9 @@ import Link from "next/link";
 import {
   AreaChart,
   Area,
+  BarChart,
+  Bar,
+  Cell,
   XAxis,
   YAxis,
   Tooltip,
@@ -14,27 +17,36 @@ import {
 import { Icon } from "@/components/Icon";
 import { PageLoader } from "@/components/AppShell";
 import { api } from "@/lib/api";
-import type { DashboardStats, Report, PredictiveAlert } from "@/lib/types";
+import type { DashboardStats, Report, PredictiveAlert, GeoBreakdown, ScoreDistribution, TimelineEvent } from "@/lib/types";
 import { severityBadge, severityText, reportTitle, formatDateTime, shortId } from "@/lib/format";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [alerts, setAlerts] = useState<PredictiveAlert[]>([]);
+  const [geoData, setGeoData] = useState<GeoBreakdown[]>([]);
+  const [scoreDistData, setScoreDistData] = useState<ScoreDistribution[]>([]);
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const [s, r, a] = await Promise.all([
+        const [s, r, a, geo, scoreDist, tl] = await Promise.all([
           api.get<DashboardStats>("/cases/stats"),
           api.get<Report[]>("/reports?limit=8"),
           api.get<PredictiveAlert[]>("/alerts/predictive"),
+          api.get<GeoBreakdown[]>("/dashboard/geo-breakdown"),
+          api.get<ScoreDistribution[]>("/dashboard/score-distribution"),
+          api.get<TimelineEvent[]>("/dashboard/timeline"),
         ]);
         setStats(s);
         setReports(r);
         setAlerts(a);
+        setGeoData(geo);
+        setScoreDistData(scoreDist);
+        setTimeline(tl);
       } catch {
         setError("Failed to load dashboard data.");
       } finally {
@@ -80,6 +92,8 @@ export default function DashboardPage() {
   ];
 
   const brief = alerts[0];
+
+  const SEVERITY_COLORS = ["#1F9D6B", "#5d5fef", "#E8A33D", "#D6303C", "#991B1B"];
 
   return (
     <div className="p-gutter space-y-gutter">
@@ -320,6 +334,84 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Analytics Grid - Geo, Score Distribution, Timeline */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
+        {/* Geo Bar Chart */}
+        <section className="bento-card p-card-padding">
+          <h3 className="font-headline-sm text-on-surface mb-stack-md">City Distribution</h3>
+          {geoData.length === 0 ? (
+            <p className="font-body-md text-on-surface-variant/60 text-[12px]">No data.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={geoData}>
+                <XAxis dataKey="city" tick={{ fill: "#9ca3af", fontSize: 10 }} />
+                <YAxis tick={{ fill: "#9ca3af", fontSize: 10 }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "#1f1f25",
+                    border: "1px solid #464555",
+                    borderRadius: 8,
+                    color: "#e4e1e9",
+                    fontSize: 12,
+                  }}
+                />
+                <Bar dataKey="count" fill="#5d5fef" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </section>
+
+        {/* Score Distribution Histogram */}
+        <section className="bento-card p-card-padding">
+          <h3 className="font-headline-sm text-on-surface mb-stack-md">Threat Score Distribution</h3>
+          {scoreDistData.length === 0 ? (
+            <p className="font-body-md text-on-surface-variant/60 text-[12px]">No data.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={scoreDistData}>
+                <XAxis dataKey="range" tick={{ fill: "#9ca3af", fontSize: 10 }} />
+                <YAxis tick={{ fill: "#9ca3af", fontSize: 10 }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "#1f1f25",
+                    border: "1px solid #464555",
+                    borderRadius: 8,
+                    color: "#e4e1e9",
+                    fontSize: 12,
+                  }}
+                />
+                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                  {scoreDistData.map((_, i) => (
+                    <Cell key={i} fill={SEVERITY_COLORS[i % SEVERITY_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </section>
+
+        {/* Threat Timeline */}
+        <section className="bento-card p-card-padding max-h-96 overflow-y-auto custom-scrollbar">
+          <h3 className="font-headline-sm text-on-surface mb-stack-md">Threat Timeline</h3>
+          {timeline.length === 0 ? (
+            <p className="font-body-md text-on-surface-variant/60 text-[12px]">No data.</p>
+          ) : (
+            <div className="space-y-stack-sm">
+              {timeline.slice(0, 20).map((evt) => (
+                <div key={evt.id} className="flex items-center gap-stack-sm">
+                  <div className={`w-2 h-2 rounded-full ${evt.severity === "critical" ? "bg-error" : evt.severity === "high" ? "bg-warning" : "bg-primary"}`} />
+                  <span className="text-body-sm text-on-surface-variant">{evt.created_at ? new Date(evt.created_at).toLocaleString() : "N/A"}</span>
+                  <span className="text-body-sm text-on-surface">{evt.scam_category || "Report"}</span>
+                  <span className={`text-[10px] uppercase font-bold px-1 rounded ${evt.severity === "critical" ? "text-error bg-error/10" : evt.severity === "high" ? "text-warning bg-warning/10" : "text-primary bg-primary/10"}`}>
+                    {evt.severity || "pending"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
