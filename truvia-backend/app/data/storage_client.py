@@ -20,8 +20,22 @@ class StorageClient:
         elif self.storage_type == "cloudinary":
             # Cloudinary can be configured either via CLOUDINARY_URL or via explicit credentials
             if settings.CLOUDINARY_URL:
-                cloudinary.config(cloudinary_url=settings.CLOUDINARY_URL)
-                logger.info("Initialized Cloudinary client via CLOUDINARY_URL")
+                try:
+                    url = settings.CLOUDINARY_URL
+                    if url.startswith("cloudinary://"):
+                        body = url[len("cloudinary://"):]
+                        auth, cloud_name = body.split("@")
+                        api_key, api_secret = auth.split(":")
+                        cloudinary.config(
+                            cloud_name=cloud_name,
+                            api_key=api_key,
+                            api_secret=api_secret
+                        )
+                        logger.info("Initialized Cloudinary client via manually parsed CLOUDINARY_URL")
+                    else:
+                        raise ValueError("Invalid CLOUDINARY_URL prefix")
+                except Exception as e:
+                    logger.error(f"Failed to parse CLOUDINARY_URL: {str(e)}")
             elif settings.CLOUDINARY_CLOUD_NAME and settings.CLOUDINARY_API_KEY and settings.CLOUDINARY_API_SECRET:
                 cloudinary.config(
                     cloud_name=settings.CLOUDINARY_CLOUD_NAME,
