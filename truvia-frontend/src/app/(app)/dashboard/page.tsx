@@ -309,25 +309,37 @@ export default function DashboardPage() {
               </span>
             </div>
             <div className="flex-1 overflow-y-auto custom-scrollbar">
-              {alerts.map((a, i) => (
-                <div
-                  key={i}
-                  className="p-4 border-b border-outline-variant/30 hover:bg-surface-container-high/50 transition-colors"
-                >
-                  <div className="flex justify-between mb-2">
-                    <span className={`font-label-md text-[10px] uppercase font-bold ${severityText(a.severity)}`}>
-                      {a.severity}
-                    </span>
-                    <span className="font-label-md text-[10px] text-outline">
-                      {a.velocity_metric.count_14d} / 14d
-                    </span>
-                  </div>
-                  <h3 className="font-body-md font-bold text-on-surface">{a.title}</h3>
-                  <p className="text-[12px] text-on-surface-variant mt-1 leading-snug line-clamp-3">
-                    {a.description}
-                  </p>
-                </div>
-              ))}
+              {alerts.map((a, i) => {
+                // Alert titles are "Velocity Surge: {category}" (alerts.py). Drill into
+                // the pre-filtered Complaint Table for that category (App Flow §9).
+                const category = a.title.replace(/^Velocity Surge:\s*/, "").trim();
+                return (
+                  <Link
+                    key={i}
+                    href={`/reports?category=${encodeURIComponent(category)}`}
+                    className="block p-4 border-b border-outline-variant/30 hover:bg-surface-container-high/50 transition-colors group"
+                  >
+                    <div className="flex justify-between mb-2">
+                      <span className={`font-label-md text-[10px] uppercase font-bold ${severityText(a.severity)}`}>
+                        {a.severity}
+                      </span>
+                      <span className="font-label-md text-[10px] text-outline">
+                        {a.velocity_metric.count_14d} / 14d
+                      </span>
+                    </div>
+                    <h3 className="font-body-md font-bold text-on-surface flex items-center gap-1">
+                      {a.title}
+                      <Icon
+                        name="arrow_forward"
+                        className="text-[14px] text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                      />
+                    </h3>
+                    <p className="text-[12px] text-on-surface-variant mt-1 leading-snug line-clamp-3">
+                      {a.description}
+                    </p>
+                  </Link>
+                );
+              })}
               {alerts.length === 0 && (
                 <p className="p-4 font-body-md text-on-surface-variant">No active alerts.</p>
               )}

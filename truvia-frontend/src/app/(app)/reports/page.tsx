@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { PageLoader } from "@/components/AppShell";
 import { api, ApiError } from "@/lib/api";
@@ -11,7 +12,8 @@ const PAGE_SIZE = 10;
 const STATUSES = ["", "submitted", "processing", "scored", "escalated", "dismissed", "failed"];
 const SOURCE_TYPES = ["", "text", "screenshot", "audio"];
 
-export default function ReportsPage() {
+function ReportsInner() {
+  const searchParams = useSearchParams();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +21,9 @@ export default function ReportsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [sourceType, setSourceType] = useState("");
+  // Pre-filter by scam category when arriving from a Dashboard emerging-trend row
+  // (?category=…, App Flow §9). Applied server-side via the /reports category param.
+  const [category, setCategory] = useState(searchParams.get("category") ?? "");
   const [hasMore, setHasMore] = useState(false);
 
   const load = useCallback(async () => {
@@ -29,6 +34,7 @@ export default function ReportsPage() {
       if (search) params.set("search", search);
       if (status) params.set("status", status);
       if (sourceType) params.set("source_type", sourceType);
+      if (category) params.set("category", category);
       params.set("limit", String(PAGE_SIZE));
       params.set("offset", String(page * PAGE_SIZE));
       const data = await api.get<Report[]>(`/reports?${params.toString()}`);
@@ -39,7 +45,7 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, status, sourceType, page]);
+  }, [search, status, sourceType, category, page]);
 
   useEffect(() => {
     load();
@@ -58,6 +64,7 @@ export default function ReportsPage() {
     if (search) params.set("search", search);
     if (status) params.set("status", status);
     if (sourceType) params.set("source_type", sourceType);
+    if (category) params.set("category", category);
     try {
       await api.download(`/reports/export?${params.toString()}`, "truvia-complaints-export.csv");
     } catch {
@@ -140,6 +147,25 @@ export default function ReportsPage() {
             </select>
           </div>
         </div>
+        {category && (
+          <div className="mt-stack-sm flex items-center gap-stack-sm">
+            <span className="font-label-md text-on-surface-variant/70 uppercase text-[11px]">Category</span>
+            <span className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full bg-primary/15 text-primary text-[12px] font-bold capitalize">
+              {category}
+              <button
+                onClick={() => {
+                  setPage(0);
+                  setCategory("");
+                }}
+                className="p-0.5 rounded-full hover:bg-primary/20 transition-colors"
+                title="Clear category filter"
+                aria-label="Clear category filter"
+              >
+                <Icon name="close" className="text-[14px]" />
+              </button>
+            </span>
+          </div>
+        )}
       </section>
 
       {/* Table */}
@@ -248,5 +274,13 @@ export default function ReportsPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function ReportsPage() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ReportsInner />
+    </Suspense>
   );
 }

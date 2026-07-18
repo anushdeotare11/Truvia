@@ -6,6 +6,12 @@ sqlalchemy>=2.0.0
 asyncpg==0.29.0
 alembic==1.13.1
 neo4j==5.21.0
+# Graph analytics for fraud-ring clustering. Used as the "equivalent" Louvain
+# engine (Backend_Schema §9.4) when Neo4j GDS is unavailable; runs over the
+# authoritative Postgres relationship graph so ring detection works with or
+# without Neo4j online.
+networkx==3.3
+python-louvain==0.16
 pgvector==0.3.1
 redis==5.0.7
 rq==1.16.2

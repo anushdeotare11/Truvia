@@ -92,10 +92,10 @@ async def search_similar_chunks(
             # cosine similarity = 1 - cosine distance
             sql_query = text("""
                 SELECT id, knowledge_base_id, chunk_index, chunk_text, 
-                       (1 - (embedding <=> :vector::vector)) AS similarity
+                       (1 - (embedding <=> CAST(:vector AS vector))) AS similarity
                 FROM knowledge_base_chunks
-                WHERE (1 - (embedding <=> :vector::vector)) >= :threshold
-                ORDER BY embedding <=> :vector::vector ASC
+                WHERE (1 - (embedding <=> CAST(:vector AS vector))) >= :threshold
+                ORDER BY embedding <=> CAST(:vector AS vector) ASC
                 LIMIT :limit
             """)
             
