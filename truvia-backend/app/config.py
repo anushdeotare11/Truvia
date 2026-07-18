@@ -41,9 +41,15 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: Optional[str] = Field(default=None)
 
     # Storage Config
-    STORAGE_TYPE: str = "local"  # local or s3
+    STORAGE_TYPE: str = "local"  # local, s3, or cloudinary
     STORAGE_BUCKET_NAME: str = "truvia-evidence"
     LOCAL_STORAGE_DIR: str = "./storage/evidence"
+
+    # Cloudinary Config
+    CLOUDINARY_CLOUD_NAME: Optional[str] = Field(default=None)
+    CLOUDINARY_API_KEY: Optional[str] = Field(default=None)
+    CLOUDINARY_API_SECRET: Optional[str] = Field(default=None)
+    CLOUDINARY_URL: Optional[str] = Field(default=None)
 
     # OCR/ASR Fallback Configuration
     OCR_LOW_CONFIDENCE_THRESHOLD: float = 0.60

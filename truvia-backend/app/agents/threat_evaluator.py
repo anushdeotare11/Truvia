@@ -153,22 +153,85 @@ class ThreatEvaluatorAgent:
         score_val = 15  # Default baseline
         cat = "Suspected Scam"
         indicators = []
+        victim_instructions = [
+            "Do not make any transfers or share OTP keys.",
+            "Verify calling numbers with the official website of the organization.",
+            "Report this immediately to the national cybercrime portal."
+        ]
 
-        if "arrest" in text_lower or "police" in text_lower or "custody" in text_lower:
-            score_val += 50
+        # 1. Digital Arrest / Law Enforcement Impersonation
+        if any(kw in text_lower for kw in ["arrest", "police", "custody", "cbi", "court", "warrant"]):
+            score_val += 60
             cat = "Digital Arrest Scam"
             indicators.append("Impersonation of law enforcement officials")
             indicators.append("Threats of immediate arrest or custody")
+            victim_instructions.extend([
+                "Government or police officials will never place you under 'digital arrest' or demand money via video calls.",
+                "Immediately disconnect any video calls claiming to be from law enforcement demanding payment."
+            ])
         
-        if "upi" in text_lower or "transfer" in text_lower or "pay" in text_lower or "rupees" in text_lower or "inr" in text_lower:
+        # 2. UPI / Financial Fraud
+        if any(kw in text_lower for kw in ["upi", "transfer", "pay", "rupees", "inr", "refund", "cashback", "prize", "won", "lottery"]):
             score_val += 30
-            indicators.append("Demand for immediate financial transactions")
+            indicators.append("Demand for immediate financial transactions or prize claims")
             if cat == "Suspected Scam":
-                cat = "UPI / Financial Fraud"
+                cat = "UPI Refund Scam"
+            victim_instructions.append("Never approve unknown UPI collect requests or enter your UPI PIN to receive money.")
 
-        if "compromised" in text_lower or "otp" in text_lower or "kyc" in text_lower:
-            score_val += 20
-            indicators.append("Request for security OTPs or account details")
+        # 3. Phishing / Brand Impersonation / KYC / Pancard Scams
+        # Check bank/reputable brand names
+        bank_brands = ["hdfc", "sbi", "icici", "axis", "pnb", "citi", "hsbc", "kotak", "bank", "netbanking"]
+        has_bank = any(brand in text_lower for brand in bank_brands)
+        
+        # Check KYC/Pancard/Aadhaar/Identity keywords
+        has_identity = any(kw in text_lower for kw in ["pancard", "pan card", "aadhaar", "kyc", "verify", "verification", "update", "compromised", "otp"])
+        
+        # Check urgency/account threat keywords
+        has_urgency = any(kw in text_lower for kw in ["block", "suspend", "deactivat", "freez", "disabl", "today", "immediately", "expired", "action required", "notice"])
+        
+        # Check link/url or contact markers
+        has_link = any(kw in text_lower for kw in ["http://", "https://", ".gy", "bit.ly", "tinyurl", "t.co", ".link", ".cc", ".top", ".xyz", "visit", "click"])
+
+        if has_bank or has_identity or has_urgency or has_link:
+            phishing_signals = 0
+            if has_bank:
+                phishing_signals += 1
+            if has_identity:
+                phishing_signals += 1
+            if has_urgency:
+                phishing_signals += 1
+            if has_link:
+                phishing_signals += 1
+
+            if phishing_signals >= 3:
+                score_val += 75
+                cat = "KYC Verification Scam"
+                indicators.append("Urgent security/KYC/PAN update demand linked to account suspension")
+                indicators.append("Presence of external suspicious links/URLs requesting credentials")
+                victim_instructions.extend([
+                    "Do not click on links in unsolicited messages claiming your bank account is blocked.",
+                    "Verify the status of your account directly via the bank's official app or official hotline."
+                ])
+            elif phishing_signals == 2:
+                score_val += 45
+                if cat == "Suspected Scam":
+                    cat = "KYC Verification Scam"
+                indicators.append("Suspicious account action or verification request detected")
+                if has_link:
+                    indicators.append("Presence of external link or call-to-action")
+            else:
+                score_val += 15
+
+        # 4. Job / Part-time Tasks Scam
+        if any(kw in text_lower for kw in ["job", "part-time", "part time", "salary", "earn", "commission", "youtube likes", "telegram tasks"]):
+            score_val += 35
+            indicators.append("Unsolicited offers promising easy money or task-based commission")
+            if cat == "Suspected Scam":
+                cat = "Lottery/Job Scam"
+            victim_instructions.extend([
+                "Be wary of jobs requiring upfront deposits or paying for video likes and Telegram tasks.",
+                "Legitimate organizations do not charge fees to secure employment."
+            ])
 
         # Clamp score at 100
         score_val = min(score_val, 100)
@@ -183,16 +246,23 @@ class ThreatEvaluatorAgent:
         else:
             band = "low"
 
+        # Unique list of indicators and instructions to keep it clean
+        unique_indicators = list(dict.fromkeys(indicators))
+        unique_instructions = list(dict.fromkeys(victim_instructions))
+
+        # Dynamic confidence score based on the strength of signals matched
+        confidence_val = 0.80
+        if len(unique_indicators) >= 2:
+            confidence_val = 0.90
+        elif len(unique_indicators) == 0:
+            confidence_val = 0.50
+
         reasoning = {
-            "key_indicators": indicators or ["Suspicious communications requesting attention"],
-            "victim_instructions": [
-                "Do not make any transfers or share OTP keys.",
-                "Verify calling numbers with the official website of the organization.",
-                "Report this immediately to the national cybercrime portal."
-            ],
+            "key_indicators": unique_indicators or ["Suspicious communications requesting attention"],
+            "victim_instructions": unique_instructions,
             "risk_explanation": f"Evaluated based on suspicious keywords representing {cat} patterns."
         }
 
-        return score_val, band, cat, 0.80, reasoning, True
+        return score_val, band, cat, confidence_val, reasoning, True
 
 threat_evaluator_agent = ThreatEvaluatorAgent()
