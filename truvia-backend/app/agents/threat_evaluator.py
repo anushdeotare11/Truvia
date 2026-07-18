@@ -106,7 +106,8 @@ class ThreatEvaluatorAgent:
         """
         Performs threat score calculations.
         """
-        if self.client:
+        from app.core.config_check import is_gemini_enabled
+        if self.client and is_gemini_enabled():
             try:
                 prompt = (
                     "You are a cybercrime investigator analyzing a report of a digital scam.\n"
@@ -146,7 +147,13 @@ class ThreatEvaluatorAgent:
                     False
                 )
             except Exception as e:
-                logger.error(f"Gemini threat evaluation failed: {str(e)}. Falling back to local rule-engine.")
+                import google.api_core.exceptions as exc
+                if isinstance(e, exc.Unauthenticated):
+                    logger.error(f"Gemini threat evaluation failed with 401 Unauthenticated: {str(e)}. Disabling Gemini integration and falling back to local rule-engine.")
+                    from app.core.config_check import disable_gemini
+                    disable_gemini()
+                else:
+                    logger.error(f"Gemini threat evaluation failed: {str(e)}. Falling back to local rule-engine.")
 
         # Local rule engine fallback
         text_lower = text.lower()

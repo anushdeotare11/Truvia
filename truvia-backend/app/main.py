@@ -51,6 +51,14 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Config check failed: {str(e)}")
 
+    # Start Gemini key validation in the background on startup
+    try:
+        from app.core.config_check import verify_gemini_key_background
+        import asyncio
+        asyncio.create_task(verify_gemini_key_background())
+    except Exception as e:
+        logger.error(f"Failed to start Gemini key validation: {e}")
+
     # Warm the local OCR/STT engines in the background so the first citizen upload
     # (especially audio) doesn't pay one-time model load/download latency and time out
     # the frontend's result polling. Non-blocking — startup proceeds immediately.

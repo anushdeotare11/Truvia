@@ -72,7 +72,10 @@ async def get_db():
         try:
             yield session
         except Exception as e:
-            logger.error(f"Database session error: {str(e)}")
+            from fastapi import HTTPException
+            from starlette.exceptions import HTTPException as StarletteHTTPException
+            if not isinstance(e, (HTTPException, StarletteHTTPException)):
+                logger.error(f"Database session error: {str(e)}")
             await session.rollback()
             raise
         finally:

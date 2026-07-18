@@ -70,7 +70,8 @@ class InvestigationAgent:
                 cleaned_texts = [r.cleaned_text for r in reports if r.cleaned_text]
 
                 # 4. Generate Summary
-                if self.client and cleaned_texts:
+                from app.core.config_check import is_gemini_enabled
+                if self.client and is_gemini_enabled() and cleaned_texts:
                     summary_data = await self._generate_llm_summary(cleaned_texts, phone_list, upi_list)
                 else:
                     summary_data = await self._generate_local_summary(cleaned_texts, phone_list, upi_list)
@@ -116,7 +117,13 @@ class InvestigationAgent:
                 return json.loads(raw_content[start_idx:end_idx+1])
             return {"summary": raw_content, "primary_patterns": [], "estimated_losses": 0.0}
         except Exception as e:
-            logger.error(f"Failed to generate LLM summary: {str(e)}")
+            import google.api_core.exceptions as exc
+            if isinstance(e, exc.Unauthenticated):
+                logger.error(f"Failed to generate LLM summary with 401 Unauthenticated: {str(e)}. Disabling Gemini integration.")
+                from app.core.config_check import disable_gemini
+                disable_gemini()
+            else:
+                logger.error(f"Failed to generate LLM summary: {str(e)}")
             return await self._generate_local_summary(texts, phones, upis)
 
     async def _generate_local_summary(self, texts: list, phones: list, upis: list) -> dict:
@@ -241,7 +248,8 @@ class InvestigationAgent:
                 )[:10]
 
                 # Generate summary using LLM or local fallback
-                if self.client and cleaned_texts:
+                from app.core.config_check import is_gemini_enabled
+                if self.client and is_gemini_enabled() and cleaned_texts:
                     summary_data = await self._generate_ring_llm_summary(
                         cleaned_texts, phone_list, upi_list, total_victims, total_reports
                     )
@@ -311,7 +319,13 @@ class InvestigationAgent:
                 "estimated_losses": 0.0,
             }
         except Exception as e:
-            logger.error(f"Ring LLM summary failed: {str(e)}")
+            import google.api_core.exceptions as exc
+            if isinstance(e, exc.Unauthenticated):
+                logger.error(f"Ring LLM summary failed with 401 Unauthenticated: {str(e)}. Disabling Gemini integration.")
+                from app.core.config_check import disable_gemini
+                disable_gemini()
+            else:
+                logger.error(f"Ring LLM summary failed: {str(e)}")
             return await self._generate_ring_local_summary(texts, phones, upis, total_victims, total_reports)
 
     async def _generate_ring_local_summary(

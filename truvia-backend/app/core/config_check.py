@@ -17,13 +17,60 @@ from app.config import settings
 logger = logging.getLogger("truvia.config_check")
 
 
+_gemini_disabled = False
+
+
+def disable_gemini() -> None:
+    global _gemini_disabled
+    if not _gemini_disabled:
+        _gemini_disabled = True
+        logger.warning("Google Gemini integrations have been disabled due to invalid credentials.")
+
+
+def is_gemini_enabled() -> bool:
+    global _gemini_disabled
+    if _gemini_disabled:
+        return False
+    return _key_present(settings.GOOGLE_API_KEY, "your-google-key")
+
+
+async def verify_gemini_key_background() -> None:
+    """Verify the Gemini API key in the background on startup."""
+    import google.generativeai as genai
+    import google.api_core.exceptions as exc
+    import asyncio
+
+    if not is_gemini_enabled():
+        return
+
+    key = settings.GOOGLE_API_KEY
+    try:
+        genai.configure(api_key=key.strip())
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        logger.info("Verifying Google Gemini API key credentials in background...")
+        await asyncio.wait_for(
+            asyncio.to_thread(
+                model.generate_content,
+                "ping",
+                generation_config={"max_output_tokens": 1}
+            ),
+            timeout=5.0
+        )
+        logger.info("Google Gemini API key credentials verified successfully.")
+    except exc.Unauthenticated as e:
+        logger.error(f"Google Gemini key validation failed with 401 Unauthenticated: {e}. Disabling Gemini integrations.")
+        disable_gemini()
+    except Exception as e:
+        logger.warning(f"Google Gemini key validation check returned exception: {e}. Keeping integration active.")
+
+
 def _key_present(value: str | None, placeholder_fragment: str) -> bool:
     return bool(value and placeholder_fragment not in value and len(value) > 10)
 
 
 def get_capability_report() -> Dict[str, Dict[str, object]]:
     """Return a structured report of AI/data capabilities and their config state."""
-    gemini_ok = _key_present(settings.GOOGLE_API_KEY, "your-google-key")
+    gemini_ok = is_gemini_enabled()
     openai_ok = _key_present(settings.OPENAI_API_KEY, "your-openai-key")
 
     # Offline OCR (RapidOCR/ONNX) — bundled models, no cloud key or system binary.

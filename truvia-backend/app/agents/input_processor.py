@@ -210,7 +210,8 @@ class InputProcessorAgent:
         """
         Runs OCR. Uses Gemini Multimodal API if configured, otherwise rules-based mock.
         """
-        if self.client:
+        from app.core.config_check import is_gemini_enabled
+        if self.client and is_gemini_enabled():
             try:
                 import io
                 import PIL.Image
@@ -247,7 +248,13 @@ class InputProcessorAgent:
                 )
 
             except Exception as e:
-                logger.error(f"Gemini Multimodal OCR failed: {str(e)}. Falling back to local OCR engine.")
+                import google.api_core.exceptions as exc
+                if isinstance(e, exc.Unauthenticated):
+                    logger.error(f"Gemini Multimodal OCR failed with 401 Unauthenticated: {str(e)}. Disabling Gemini integration and falling back to local OCR engine.")
+                    from app.core.config_check import disable_gemini
+                    disable_gemini()
+                else:
+                    logger.error(f"Gemini Multimodal OCR failed: {str(e)}. Falling back to local OCR engine.")
 
         # Real on-device OCR (no cloud key required) via RapidOCR (bundled ONNX models).
         local_text, local_conf = await self._local_ocr(image_bytes)

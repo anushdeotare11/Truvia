@@ -46,7 +46,7 @@ async def search_similar_chunks(
     try:
         query_vector = await get_embedding(query_text)
         
-        if is_sqlite:
+        if session.bind.dialect.name == "sqlite":
             logger.info("Performing lexical keyword similarity search (SQLite fallback)")
             result = await session.execute(select(KnowledgeBaseChunk))
             all_chunks = result.scalars().all()

@@ -81,7 +81,8 @@ class KnowledgeAgent:
                 context_block = report_context_block + "\n\n" + context_block if context_block else report_context_block
 
             # 3. Generate Answer
-            if self.client and context_block:
+            from app.core.config_check import is_gemini_enabled
+            if self.client and is_gemini_enabled() and context_block:
                 try:
                     answer = await self._generate_llm_answer(query_text, context_block)
                 except Exception as llm_err:
@@ -181,7 +182,13 @@ class KnowledgeAgent:
             response = await asyncio.to_thread(self.client.generate_content, prompt)
             return response.text.strip()
         except Exception as e:
-            logger.error(f"Gemini RAG failed: {str(e)}")
+            import google.api_core.exceptions as exc
+            if isinstance(e, exc.Unauthenticated):
+                logger.error(f"Gemini RAG failed with 401 Unauthenticated: {str(e)}. Disabling Gemini integration.")
+                from app.core.config_check import disable_gemini
+                disable_gemini()
+            else:
+                logger.error(f"Gemini RAG failed: {str(e)}")
             raise
 
     async def _generate_local_grounded_answer(self, query: str, citations: list) -> str:
