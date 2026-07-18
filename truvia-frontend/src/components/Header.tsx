@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Icon } from "./Icon";
 import { useAuth } from "@/lib/auth";
+
+// Officer/Intelligence "oversight" surfaces an admin can cross into (App Flow §9).
+// When an admin is viewing one of these, the header shows a persistent "Admin View"
+// badge to signal they are outside their own /admin/* console.
+const OVERSIGHT_PREFIXES = ["/dashboard", "/investigations", "/my-cases", "/reports", "/intelligence", "/threat-intel"];
 
 export function Header({
   title,
@@ -14,8 +19,13 @@ export function Header({
 }) {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const showAdminView =
+    user?.role === "admin" &&
+    OVERSIGHT_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p + "?"));
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -45,6 +55,15 @@ export function Header({
         <span className="font-headline-sm text-primary hidden sm:block whitespace-nowrap">
           {title}
         </span>
+        {showAdminView && (
+          <span
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-tertiary/15 text-tertiary border border-tertiary/30 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap"
+            title="You are viewing an officer/intelligence surface as an administrator"
+          >
+            <Icon name="visibility" className="text-[14px]" fill />
+            Admin View
+          </span>
+        )}
         <div className="relative w-full max-w-md hidden md:block">
           <Icon
             name="search"

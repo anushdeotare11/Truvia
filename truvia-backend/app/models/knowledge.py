@@ -37,6 +37,7 @@ class KnowledgeBase(Base):
     added_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     status = Column(String(50), nullable=False, default="processing")  # processing, indexed, failed
     version = Column(Integer, nullable=False, default=1)
+    times_cited = Column(Integer, nullable=False, default=0)  # incremented each time cited in a chat answer (§8.4)
     
     ingested_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())

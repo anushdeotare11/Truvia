@@ -85,6 +85,21 @@ export function GraphView({
     return m;
   }, [positioned]);
 
+  // Auto-center + zoom on the selected/focused node so an inbound ?focus= link
+  // (App Flow §9) actually frames the entity rather than just tinting it.
+  const viewBox = useMemo(() => {
+    if (selectedId) {
+      const sel = posMap.get(selectedId);
+      if (sel) {
+        const zoom = 0.5;
+        const vw = W * zoom;
+        const vh = H * zoom;
+        return `${sel.x - vw / 2} ${sel.y - vh / 2} ${vw} ${vh}`;
+      }
+    }
+    return `0 0 ${W} ${H}`;
+  }, [selectedId, posMap]);
+
   if (nodes.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center text-on-surface-variant font-body-md">
@@ -94,7 +109,7 @@ export function GraphView({
   }
 
   return (
-    <svg className="w-full h-full" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
+    <svg className="w-full h-full" viewBox={viewBox} preserveAspectRatio="xMidYMid meet">
       <defs>
         <linearGradient id="edgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#5d5fef" stopOpacity="0.5" />

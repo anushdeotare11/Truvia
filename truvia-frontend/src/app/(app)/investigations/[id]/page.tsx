@@ -86,6 +86,12 @@ export default function InvestigationDetailPage() {
     })),
   ].sort((a, b) => new Date(b.time ?? 0).getTime() - new Date(a.time ?? 0).getTime());
 
+  // Highest-risk extracted entity — the node the graph should auto-center on when
+  // the officer opens "View in Threat Intelligence Engine" (App Flow §9).
+  const topEntity = detail.entities.length
+    ? [...detail.entities].sort((a, b) => b.risk_score - a.risk_score)[0]
+    : null;
+
   return (
     <div className="p-gutter">
       {/* Header */}
@@ -285,6 +291,15 @@ export default function InvestigationDetailPage() {
                 {detail.entities.length}
               </span>
             </div>
+            {topEntity && (
+              <Link
+                href={`/intelligence/graph?focus=${topEntity.id}`}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 border-b border-outline-variant bg-primary/5 hover:bg-primary/10 text-primary font-bold text-[11px] uppercase tracking-wider transition-colors"
+              >
+                <Icon name="hub" className="text-[16px]" />
+                View in Threat Intelligence Engine
+              </Link>
+            )}
             <div className="max-h-96 overflow-y-auto custom-scrollbar">
               {detail.entities.map((e) => (
                 <div
@@ -300,7 +315,7 @@ export default function InvestigationDetailPage() {
                     </span>
                   </div>
                   <Link
-                    href={`/threat-intel?entity=${e.id}`}
+                    href={`/intelligence/entity/${e.id}?from=${encodeURIComponent(`/investigations/${id}`)}`}
                     className="text-on-surface font-mono text-[12px] break-all hover:text-primary transition-colors"
                   >
                     {e.raw_value}

@@ -2,7 +2,7 @@ from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.core.logging import logger
-from app.api.v1 import auth, reports, chat, graph, entities, cases, alerts, dashboard
+from app.api.v1 import auth, reports, chat, graph, entities, cases, alerts, dashboard, admin
 from sqlalchemy import text
 from app.data.postgres_client import engine
 from app.data.neo4j_client import neo4j_client
@@ -39,6 +39,7 @@ app.include_router(entities.router, prefix="/api/v1/entities", tags=["Threat Ent
 app.include_router(cases.router, prefix="/api/v1/cases", tags=["Cyber Investigation Cases"])
 app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Predictive Threats & Alerts"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Analytics Dashboard"])
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin Journey"])
 
 @app.on_event("startup")
 async def startup_event():
@@ -67,6 +68,14 @@ async def startup_event():
         await check_and_create_tables()
     except Exception as e:
         logger.error(f"Error bootstrapping local database tables: {str(e)}")
+
+    # Install admin observability/telemetry (agent latency + error + citation
+    # logging) for the System Health screen. Non-invasive; agent files unchanged.
+    try:
+        from app.core import metrics
+        metrics.install()
+    except Exception as e:
+        logger.error(f"Could not install admin telemetry: {str(e)}")
 
     # Initialize Neo4j Client
     try:

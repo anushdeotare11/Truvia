@@ -1,333 +1,403 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from fastapi.responses import StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.data.postgres_client import get_db
-from app.api import deps
-from app.models.report import Entity, Relationship, ReportEntity, Report
-from sqlalchemy import select
-from app.data.neo4j_client import neo4j_client
-from app.core.pdf import generate_report_pdf
-from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+"""Threat Intelligence Engine API (App Flow §7, Backend_Schema §9).
+
+All data is computed from the authoritative Postgres store (entities,
+relationships, report_entities, threat_scores, fraud_rings). Neo4j, when
+online, is a derived correlation index; these endpoints do not hard-depend on
+it, so the engine works from a fresh clone with or without Neo4j running.
+
+Every route is restricted to officer/admin via deps.require_officer.
+"""
+import hashlib
+import json
 import logging
-import asyncio
 import uuid
+from collections import Counter
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy import select, func, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api import deps
+from app.core.pdf import generate_report_pdf
+from app.data.postgres_client import get_db
+from app.models.case import Case, CaseReport, IntelligencePackage
+from app.models.report import Entity, Relationship, Report, ReportEntity, ThreatScore
+from app.models.ring import FraudRing, FraudRingMember
 
 router = APIRouter()
 logger = logging.getLogger("truvia.api.graph")
 
-def calculate_local_communities(nodes_list: List[Dict[str, Any]], edges_list: List[Dict[str, Any]]) -> Dict[str, int]:
-    """
-    Computes connected components to partition nodes into color-coded scam rings.
-    """
-    node_ids = [n["id"] for n in nodes_list]
-    adj = {nid: set() for nid in node_ids}
-    
-    for edge in edges_list:
-        s = edge["source"]
-        t = edge["target"]
-        if s in adj and t in adj:
-            adj[s].add(t)
-            adj[t].add(s)
-            
-    visited = set()
-    communities = {}
-    current_community = 0
-    
-    for nid in node_ids:
-        if nid not in visited:
-            queue = [nid]
-            visited.add(nid)
-            component = []
-            
-            while queue:
-                curr = queue.pop(0)
-                component.append(curr)
-                for neighbor in adj[curr]:
-                    if neighbor not in visited:
-                        visited.add(neighbor)
-                        queue.append(neighbor)
-                        
-            for member in component:
-                communities[member] = current_community
-            current_community += 1
-            
-    return communities
 
-@router.get("/overview", status_code=status.HTTP_200_OK)
-async def get_graph_overview(
-    db: AsyncSession = Depends(get_db),
-    current_user = Depends(deps.get_current_user) # Restrict to authenticated officers/admins
-):
-    """
-    Returns nodes and edges for the SOC Threat Graph Engine.
-    Leverages Neo4j queries if online, otherwise falls back to SQL relations with local clustering.
-    """
-    # 1. Check if Neo4j is connected and query it
-    if neo4j_client.driver:
-        try:
-            # Retrieve Entities and HAS_ENTITY links
-            cypher_query = (
-                "MATCH (e:Entity) "
-                "OPTIONAL MATCH (e)-[r:CO_OCCURRED_WITH]-(e2:Entity) "
-                "RETURN e, r, e2 LIMIT 200"
-            )
-            records = await neo4j_client.run_query(cypher_query)
-            
-            nodes_map = {}
-            edges = []
-            
-            # Simple conversion to D3-friendly structure
-            for record in records:
-                e_node = record.get("e")
-                if e_node:
-                    uid = e_node.get("uid")
-                    if uid not in nodes_map:
-                        nodes_map[uid] = {
-                            "id": uid,
-                            "label": e_node.get("value"),
-                            "type": e_node.get("type"),
-                            "risk_score": e_node.get("risk_score", 50.0),
-                            "group": 0 # Louvain component fallback
-                        }
-                
-                e2_node = record.get("e2")
-                r_rel = record.get("r")
-                if e_node and e2_node and r_rel:
-                    uid1 = e_node.get("uid")
-                    uid2 = e2_node.get("uid")
-                    edges.append({
-                        "source": uid1,
-                        "target": uid2,
-                        "type": "CO_OCCURRED_WITH",
-                        "weight": float(r_rel.get("weight", 1.0))
-                    })
-            
-            # Run local clustering over Neo4j nodes to determine community groups
-            nodes_list = list(nodes_map.values())
-            communities = await asyncio.to_thread(calculate_local_communities, nodes_list, edges)
-            for node in nodes_list:
-                node["group"] = communities.get(node["id"], 0)
-                
-            return {
-                "engine": "neo4j",
-                "nodes": nodes_list,
-                "edges": edges
-            }
-        except Exception as e:
-            logger.warning(f"Neo4j query failed (falling back to SQL): {str(e)}")
+# --------------------------------------------------------------------------- #
+# Helpers
+# --------------------------------------------------------------------------- #
+def _risk_tier(score: float) -> str:
+    if score >= 75:
+        return "critical"
+    if score >= 50:
+        return "high"
+    if score >= 25:
+        return "moderate"
+    return "low"
 
-    # 2. SQL Fallback Mode (100% Free / Resilient)
+
+def _entity_node(e: Entity, group: int = 0) -> Dict[str, Any]:
+    return {
+        "id": str(e.id),
+        "label": e.raw_value,
+        "value": e.raw_value,
+        "normalized_value": e.normalized_value,
+        "type": e.type,
+        "risk_score": float(e.risk_score),
+        "risk_tier": e.risk_tier,
+        "occurrence_count": e.occurrence_count,
+        "group": group,
+    }
+
+
+async def _get_entity_or_404(entity_id: str, db: AsyncSession) -> Entity:
     try:
-        # Fetch entities
-        entities_result = await db.execute(select(Entity))
-        entities = entities_result.scalars().all()
-        
-        # Fetch relationships
-        relationships_result = await db.execute(select(Relationship))
-        relationships = relationships_result.scalars().all()
-        
-        nodes_list = []
-        for ent in entities:
-            nodes_list.append({
-                "id": str(ent.id),
-                "label": ent.raw_value,
-                "type": ent.type,
-                "risk_score": float(ent.risk_score),
-                "group": 0
-            })
-            
-        edges_list = []
-        for rel in relationships:
-            edges_list.append({
-                "source": str(rel.entity_id_a),
-                "target": str(rel.entity_id_b),
-                "type": rel.relationship_type,
-                "weight": float(rel.strength)
-            })
-            
-        # Run Connected Components search to partition nodes into community rings
-        communities = await asyncio.to_thread(calculate_local_communities, nodes_list, edges_list)
-        for node in nodes_list:
-            node["group"] = communities.get(node["id"], 0)
-            
-        return {
-            "engine": "sqlite_fallback",
-            "nodes": nodes_list,
-            "edges": edges_list
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch graph data: {str(e)}"
-        )
+        entity_uuid = uuid.UUID(entity_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid entity id format")
+    entity = (await db.execute(select(Entity).where(Entity.id == entity_uuid))).scalar_one_or_none()
+    if not entity:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    return entity
 
 
-# --- 8.1: GET /rings - Fraud Ring Detection ---
-
-@router.get("/rings", status_code=status.HTTP_200_OK)
-async def get_fraud_rings(
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(deps.get_current_user)
-):
-    """
-    Detect fraud rings by computing connected communities and returning
-    those with 3+ members.
-    """
-    try:
-        # Fetch all entities
-        entities_result = await db.execute(select(Entity))
-        entities = entities_result.scalars().all()
-
-        # Fetch all relationships
-        relationships_result = await db.execute(select(Relationship))
-        relationships = relationships_result.scalars().all()
-
-        nodes_list = []
-        for ent in entities:
-            nodes_list.append({
-                "id": str(ent.id),
-                "type": ent.type,
-                "value": ent.raw_value,
-                "risk_score": float(ent.risk_score)
-            })
-
-        edges_list = []
-        for rel in relationships:
-            edges_list.append({
-                "source": str(rel.entity_id_a),
-                "target": str(rel.entity_id_b),
-                "type": rel.relationship_type,
-                "weight": float(rel.strength)
-            })
-
-        # Run community detection
-        communities = await asyncio.to_thread(calculate_local_communities, nodes_list, edges_list)
-
-        # Group nodes by community ID
-        community_groups: Dict[int, List[Dict[str, Any]]] = {}
-        for node in nodes_list:
-            community_id = communities.get(node["id"], 0)
-            if community_id not in community_groups:
-                community_groups[community_id] = []
-            community_groups[community_id].append(node)
-
-        # Filter communities with 3+ members
-        rings = []
-        for ring_id, members in community_groups.items():
-            if len(members) >= 3:
-                aggregate_risk = sum(m["risk_score"] for m in members) / len(members)
-                rings.append({
-                    "ring_id": ring_id,
-                    "member_count": len(members),
-                    "aggregate_risk": round(aggregate_risk, 2),
-                    "entities": [
-                        {
-                            "id": m["id"],
-                            "type": m["type"],
-                            "value": m["value"],
-                            "risk_score": m["risk_score"]
-                        }
-                        for m in members
-                    ]
-                })
-
-        return rings
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to compute fraud rings: {str(e)}"
-        )
-
-
-# --- 8.2: GET /entity/{entity_id}/subgraph - Entity Subgraph ---
-
-async def _get_entity_subgraph(entity_id: str, depth: int, db: AsyncSession) -> Dict[str, Any]:
-    """
-    BFS traversal from entity_id through Relationship table up to N hops.
-    Returns {"nodes": [...], "edges": [...]}.
-    """
-    visited_nodes = set()
-    visited_edges = set()
-    nodes = []
-    edges = []
-
-    # Start BFS from entity_id
+async def _bfs_subgraph(entity_id: str, depth: int, db: AsyncSession) -> Dict[str, Any]:
+    """Breadth-first traversal over the Postgres relationships table up to N hops."""
+    visited_nodes = {entity_id}
+    visited_edges: set = set()
+    edges: List[Dict[str, Any]] = []
     current_layer = {entity_id}
-    visited_nodes.add(entity_id)
 
     for _ in range(depth):
         if not current_layer:
             break
-
-        next_layer = set()
-        for node_id in current_layer:
+        layer_uuids = []
+        for nid in current_layer:
             try:
-                node_uuid = uuid.UUID(node_id)
-            except ValueError:
+                layer_uuids.append(uuid.UUID(nid))
+            except (ValueError, TypeError):
                 continue
-
-            # Get relationships where this entity is on either side
-            result_a = await db.execute(
-                select(Relationship).where(Relationship.entity_id_a == node_uuid)
+        if not layer_uuids:
+            break
+        rels = (await db.execute(
+            select(Relationship).where(
+                or_(Relationship.entity_id_a.in_(layer_uuids),
+                    Relationship.entity_id_b.in_(layer_uuids))
             )
-            rels_a = result_a.scalars().all()
-
-            result_b = await db.execute(
-                select(Relationship).where(Relationship.entity_id_b == node_uuid)
-            )
-            rels_b = result_b.scalars().all()
-
-            for rel in rels_a:
-                neighbor_id = str(rel.entity_id_b)
-                edge_key = (str(rel.entity_id_a), neighbor_id, rel.relationship_type)
-                if edge_key not in visited_edges:
-                    visited_edges.add(edge_key)
-                    edges.append({
-                        "source": str(rel.entity_id_a),
-                        "target": neighbor_id,
-                        "type": rel.relationship_type,
-                        "weight": float(rel.strength)
-                    })
-                if neighbor_id not in visited_nodes:
-                    visited_nodes.add(neighbor_id)
-                    next_layer.add(neighbor_id)
-
-            for rel in rels_b:
-                neighbor_id = str(rel.entity_id_a)
-                edge_key = (neighbor_id, str(rel.entity_id_b), rel.relationship_type)
-                if edge_key not in visited_edges:
-                    visited_edges.add(edge_key)
-                    edges.append({
-                        "source": neighbor_id,
-                        "target": str(rel.entity_id_b),
-                        "type": rel.relationship_type,
-                        "weight": float(rel.strength)
-                    })
-                if neighbor_id not in visited_nodes:
-                    visited_nodes.add(neighbor_id)
-                    next_layer.add(neighbor_id)
-
+        )).scalars().all()
+        next_layer = set()
+        for rel in rels:
+            a, b = str(rel.entity_id_a), str(rel.entity_id_b)
+            ekey = (a, b, rel.relationship_type)
+            if ekey not in visited_edges:
+                visited_edges.add(ekey)
+                edges.append({
+                    "source": a, "target": b,
+                    "type": rel.relationship_type, "weight": float(rel.strength),
+                })
+            for neighbor in (a, b):
+                if neighbor not in visited_nodes:
+                    visited_nodes.add(neighbor)
+                    next_layer.add(neighbor)
         current_layer = next_layer
 
-    # Fetch entity details for all visited nodes
-    for node_id in visited_nodes:
+    node_uuids = []
+    for nid in visited_nodes:
         try:
-            node_uuid = uuid.UUID(node_id)
-        except ValueError:
+            node_uuids.append(uuid.UUID(nid))
+        except (ValueError, TypeError):
             continue
-        result = await db.execute(select(Entity).where(Entity.id == node_uuid))
-        entity = result.scalar_one_or_none()
-        if entity:
-            nodes.append({
-                "id": str(entity.id),
-                "type": entity.type,
-                "value": entity.raw_value,
-                "risk_score": float(entity.risk_score)
+    entities = (await db.execute(select(Entity).where(Entity.id.in_(node_uuids)))).scalars().all()
+    nodes = [_entity_node(e) for e in entities]
+    return {"nodes": nodes, "edges": edges}
+
+
+async def _entity_ring(entity_id: uuid.UUID, db: AsyncSession) -> Optional[FraudRing]:
+    """Return the FraudRing this entity belongs to, if any."""
+    member = (await db.execute(
+        select(FraudRingMember).where(FraudRingMember.entity_id == entity_id)
+    )).scalars().first()
+    if not member:
+        return None
+    return (await db.execute(
+        select(FraudRing).where(FraudRing.id == member.ring_id)
+    )).scalar_one_or_none()
+
+
+# --------------------------------------------------------------------------- #
+# §7.1 Graph Home — capped top-N cluster overview
+# --------------------------------------------------------------------------- #
+@router.get("/overview", status_code=status.HTTP_200_OK)
+async def get_graph_overview(
+    top_n_clusters: int = Query(default=8, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(deps.require_officer),
+):
+    """Zoomed-out, cluster-level snapshot capped to the top-N highest-risk rings.
+
+    Caps the node/edge payload (PRD performance-risk mitigation) by only
+    returning members of the top-N detected clusters plus their internal edges.
+    Returns empty nodes/edges when the graph is still building (fresh system).
+    """
+    rings = (await db.execute(
+        select(FraudRing).order_by(
+            FraudRing.aggregate_risk_score.desc(), FraudRing.member_count.desc()
+        ).limit(top_n_clusters)
+    )).scalars().all()
+
+    nodes: List[Dict[str, Any]] = []
+    node_ids: set = set()
+    clusters_meta: List[Dict[str, Any]] = []
+
+    for group_idx, ring in enumerate(rings):
+        members = (await db.execute(
+            select(Entity).join(FraudRingMember, FraudRingMember.entity_id == Entity.id)
+            .where(FraudRingMember.ring_id == ring.id)
+        )).scalars().all()
+        clusters_meta.append({
+            "ring_id": ring.neo4j_ring_id,
+            "group": group_idx,
+            "member_count": ring.member_count,
+            "risk_tier": ring.risk_tier,
+            "aggregate_risk_score": float(ring.aggregate_risk_score),
+            "dominant_category": ring.dominant_category,
+        })
+        for e in members:
+            if str(e.id) not in node_ids:
+                node_ids.add(str(e.id))
+                nodes.append(_entity_node(e, group=group_idx))
+
+    edges: List[Dict[str, Any]] = []
+    if node_ids:
+        node_uuids = [uuid.UUID(nid) for nid in node_ids]
+        rels = (await db.execute(
+            select(Relationship).where(
+                Relationship.entity_id_a.in_(node_uuids),
+                Relationship.entity_id_b.in_(node_uuids),
+            )
+        )).scalars().all()
+        for rel in rels:
+            edges.append({
+                "source": str(rel.entity_id_a), "target": str(rel.entity_id_b),
+                "type": rel.relationship_type, "weight": float(rel.strength),
             })
 
-    return {"nodes": nodes, "edges": edges}
+    # Top-N high-risk entity sidebar list (independent of ring membership).
+    top_entities_rows = (await db.execute(
+        select(Entity).order_by(Entity.risk_score.desc(), Entity.occurrence_count.desc()).limit(10)
+    )).scalars().all()
+    top_entities = [_entity_node(e) for e in top_entities_rows]
+
+    algorithm = rings[0].algorithm if rings else None
+    return {
+        "engine": "postgres",              # authoritative source served
+        "algorithm": algorithm,            # gds_louvain | python_louvain | None
+        "clusters": clusters_meta,
+        "cluster_count": len(clusters_meta),
+        "nodes": nodes,
+        "edges": edges,
+        "top_entities": top_entities,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# §7.1 Entity search autocomplete
+# --------------------------------------------------------------------------- #
+@router.get("/search", status_code=status.HTTP_200_OK)
+async def search_entities(
+    q: str = Query(..., min_length=1, max_length=120),
+    limit: int = Query(default=10, ge=1, le=25),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(deps.require_officer),
+):
+    """Entity-lookup autocomplete for the Graph Home search bar."""
+    pattern = f"%{q.strip()}%"
+    rows = (await db.execute(
+        select(Entity).where(
+            or_(Entity.normalized_value.ilike(pattern), Entity.raw_value.ilike(pattern))
+        ).order_by(Entity.risk_score.desc()).limit(limit)
+    )).scalars().all()
+    return [{
+        "id": str(e.id), "value": e.raw_value, "normalized_value": e.normalized_value,
+        "type": e.type, "risk_score": float(e.risk_score), "risk_tier": e.risk_tier,
+    } for e in rows]
+
+
+# --------------------------------------------------------------------------- #
+# §7.3 Fraud Ring list
+# --------------------------------------------------------------------------- #
+@router.get("/rings", status_code=status.HTTP_200_OK)
+async def list_rings(
+    limit: int = Query(default=50, ge=1, le=200),
+    sort: str = Query(default="risk", pattern="^(size|recency|risk)$"),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(deps.require_officer),
+):
+    """Ranked list of detected fraud rings with real size/complaint/activity/risk."""
+    order = {
+        "size": (FraudRing.member_count.desc(),),
+        "recency": (FraudRing.last_activity_at.desc().nullslast(),),
+        "risk": (FraudRing.aggregate_risk_score.desc(), FraudRing.member_count.desc()),
+    }[sort]
+    rings = (await db.execute(select(FraudRing).order_by(*order).limit(limit))).scalars().all()
+    return [_ring_summary(r) for r in rings]
+
+
+def _ring_summary(r: FraudRing) -> Dict[str, Any]:
+    return {
+        "id": r.neo4j_ring_id,
+        "member_count": r.member_count,
+        "complaint_count": r.complaint_count,
+        "dominant_category": r.dominant_category,
+        "aggregate_risk_score": float(r.aggregate_risk_score),
+        "risk_tier": r.risk_tier,
+        "algorithm": r.algorithm,
+        "first_activity_at": r.first_activity_at.isoformat() if r.first_activity_at else None,
+        "last_activity_at": r.last_activity_at.isoformat() if r.last_activity_at else None,
+        "detected_at": r.detected_at.isoformat() if r.detected_at else None,
+    }
+
+
+async def _get_ring_or_404(ring_id: str, db: AsyncSession) -> FraudRing:
+    ring = (await db.execute(
+        select(FraudRing).where(FraudRing.neo4j_ring_id == ring_id)
+    )).scalar_one_or_none()
+    if not ring:
+        raise HTTPException(status_code=404, detail="Fraud ring not found")
+    return ring
+
+
+async def _ring_member_entities(ring: FraudRing, db: AsyncSession) -> List[Entity]:
+    return (await db.execute(
+        select(Entity).join(FraudRingMember, FraudRingMember.entity_id == Entity.id)
+        .where(FraudRingMember.ring_id == ring.id)
+    )).scalars().all()
+
+
+async def _ring_correlated_reports(member_ids: List[uuid.UUID], db: AsyncSession) -> List[Dict[str, Any]]:
+    if not member_ids:
+        return []
+    links = (await db.execute(
+        select(ReportEntity).where(ReportEntity.entity_id.in_(member_ids))
+    )).scalars().all()
+    report_ids = list({lr.report_id for lr in links})
+    if not report_ids:
+        return []
+    reports = (await db.execute(select(Report).where(Report.id.in_(report_ids)))).scalars().all()
+    scores = (await db.execute(
+        select(ThreatScore).where(
+            ThreatScore.report_id.in_(report_ids), ThreatScore.is_current == True,  # noqa: E712
+        )
+    )).scalars().all()
+    score_by_report = {str(s.report_id): s for s in scores}
+    out = []
+    for r in reports:
+        s = score_by_report.get(str(r.id))
+        out.append({
+            "id": str(r.id),
+            "source_type": r.source_type,
+            "status": r.status,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "threat_score": int(s.threat_score) if s else None,
+            "severity_band": s.severity_band if s else None,
+            "scam_category": s.scam_category if s else None,
+        })
+    out.sort(key=lambda x: (x["threat_score"] or 0), reverse=True)
+    return out
+
+
+@router.get("/rings/{ring_id}", status_code=status.HTTP_200_OK)
+async def get_ring_detail(
+    ring_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(deps.require_officer),
+):
+    """Full ring-scoped subgraph, member list, and correlated complaints."""
+    ring = await _get_ring_or_404(ring_id, db)
+    members = await _ring_member_entities(ring, db)
+    member_uuids = [e.id for e in members]
+
+    # Ring-scoped subgraph: nodes = members, edges = relationships among members.
+    nodes = [_entity_node(e) for e in members]
+    edges = []
+    if member_uuids:
+        rels = (await db.execute(
+            select(Relationship).where(
+                Relationship.entity_id_a.in_(member_uuids),
+                Relationship.entity_id_b.in_(member_uuids),
+            )
+        )).scalars().all()
+        edges = [{
+            "source": str(rel.entity_id_a), "target": str(rel.entity_id_b),
+            "type": rel.relationship_type, "weight": float(rel.strength),
+        } for rel in rels]
+
+    complaints = await _ring_correlated_reports(member_uuids, db)
+    return {
+        **_ring_summary(ring),
+        "members": nodes,
+        "subgraph": {"nodes": nodes, "edges": edges},
+        "complaints": complaints,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# §7.2 Entity Explorer
+# --------------------------------------------------------------------------- #
+@router.get("/entity/{entity_id}", status_code=status.HTTP_200_OK)
+async def get_entity(
+    entity_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(deps.require_officer),
+):
+    """Entity header + overview: identity, risk, connection/complaint counts, ring membership."""
+    entity = await _get_entity_or_404(entity_id, db)
+
+    rels = (await db.execute(
+        select(Relationship).where(
+            or_(Relationship.entity_id_a == entity.id, Relationship.entity_id_b == entity.id)
+        )
+    )).scalars().all()
+    connected_ids = set()
+    for rel in rels:
+        connected_ids.add(rel.entity_id_a if rel.entity_id_a != entity.id else rel.entity_id_b)
+    connected_ids.discard(entity.id)
+
+    complaint_count = (await db.execute(
+        select(func.count(func.distinct(ReportEntity.report_id)))
+        .where(ReportEntity.entity_id == entity.id)
+    )).scalar() or 0
+
+    ring = await _entity_ring(entity.id, db)
+
+    complaints = await _ring_correlated_reports([entity.id], db)
+
+    return {
+        "id": str(entity.id),
+        "type": entity.type,
+        "raw_value": entity.raw_value,
+        "value": entity.raw_value,
+        "normalized_value": entity.normalized_value,
+        "risk_score": float(entity.risk_score),
+        "risk_tier": entity.risk_tier,
+        "occurrence_count": entity.occurrence_count,
+        "connection_count": len(connected_ids),
+        "complaint_count": complaint_count,
+        "complaints": complaints,
+        "first_seen_at": entity.first_seen_at.isoformat() if entity.first_seen_at else None,
+        "last_seen_at": entity.last_seen_at.isoformat() if entity.last_seen_at else None,
+        "ring": _ring_summary(ring) if ring else None,
+        "in_ring": ring is not None,
+    }
 
 
 @router.get("/entity/{entity_id}/subgraph", status_code=status.HTTP_200_OK)
@@ -335,311 +405,307 @@ async def get_entity_subgraph(
     entity_id: str,
     depth: int = Query(default=1, ge=1, le=3),
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(deps.get_current_user)
+    current_user=Depends(deps.require_officer),
 ):
-    """
-    Returns the subgraph around an entity up to N hops (1-3).
-    Uses iterative BFS through the Relationship table.
-    """
-    # Validate entity exists
-    try:
-        entity_uuid = uuid.UUID(entity_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid entity_id format"
-        )
-
-    result = await db.execute(select(Entity).where(Entity.id == entity_uuid))
-    entity = result.scalar_one_or_none()
-    if not entity:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Entity not found"
-        )
-
-    try:
-        subgraph = await _get_entity_subgraph(entity_id, depth, db)
-        return subgraph
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch entity subgraph: {str(e)}"
-        )
+    """N-hop (1-3) neighbourhood subgraph around the entity."""
+    await _get_entity_or_404(entity_id, db)
+    return await _bfs_subgraph(entity_id, depth, db)
 
 
-# --- 8.3: GET /correlate - Report Correlation ---
-
-@router.get("/correlate", status_code=status.HTTP_200_OK)
-async def correlate_report(
-    report_id: str = Query(...),
+@router.get("/entity/{entity_id}/risk-score", status_code=status.HTTP_200_OK)
+async def get_entity_risk_score(
+    entity_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(deps.get_current_user)
+    current_user=Depends(deps.require_officer),
 ):
-    """
-    Find all reports that share entities with the given report.
-    """
-    try:
-        report_uuid = uuid.UUID(report_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid report_id format"
-        )
+    """Computed risk score, contributing factors, and risk history (sparkline)."""
+    entity = await _get_entity_or_404(entity_id, db)
 
-    # Verify the report exists
-    report_result = await db.execute(select(Report).where(Report.id == report_uuid))
-    report = report_result.scalar_one_or_none()
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not found"
-        )
-
-    try:
-        # Find all entities linked to this report
-        re_result = await db.execute(
-            select(ReportEntity).where(ReportEntity.report_id == report_uuid)
-        )
-        report_entities = re_result.scalars().all()
-        entity_ids = [re.entity_id for re in report_entities]
-
-        if not entity_ids:
-            return []
-
-        # Find all other reports that share those entities
-        correlated_reports: Dict[str, int] = {}  # report_id -> shared_entity_count
-        for entity_id in entity_ids:
-            other_re_result = await db.execute(
-                select(ReportEntity).where(
-                    ReportEntity.entity_id == entity_id,
-                    ReportEntity.report_id != report_uuid
-                )
+    # Reports touching this entity, with current threat scores, chronological.
+    links = (await db.execute(
+        select(ReportEntity).where(ReportEntity.entity_id == entity.id)
+    )).scalars().all()
+    report_ids = list({lr.report_id for lr in links})
+    history: List[Dict[str, Any]] = []
+    high_sev = 0
+    categories: List[str] = []
+    if report_ids:
+        reports = (await db.execute(select(Report).where(Report.id.in_(report_ids)))).scalars().all()
+        scores = (await db.execute(
+            select(ThreatScore).where(
+                ThreatScore.report_id.in_(report_ids), ThreatScore.is_current == True,  # noqa: E712
             )
-            other_report_entities = other_re_result.scalars().all()
-            for ore in other_report_entities:
-                rid = str(ore.report_id)
-                correlated_reports[rid] = correlated_reports.get(rid, 0) + 1
-
-        # Fetch report details for correlated reports
-        results = []
-        for rid_str, shared_count in correlated_reports.items():
-            rid_uuid = uuid.UUID(rid_str)
-            r_result = await db.execute(select(Report).where(Report.id == rid_uuid))
-            corr_report = r_result.scalar_one_or_none()
-            if corr_report:
-                results.append({
-                    "id": str(corr_report.id),
-                    "source_type": corr_report.source_type,
-                    "status": corr_report.status,
-                    "shared_entities": shared_count,
-                    "created_at": corr_report.created_at.isoformat() if corr_report.created_at else None
-                })
-
-        # Sort by shared entities descending
-        results.sort(key=lambda x: x["shared_entities"], reverse=True)
-        return results
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to correlate reports: {str(e)}"
-        )
-
-
-# --- 8.4: POST /intelligence-package - Ring Intelligence Package ---
-
-class RingPackageRequest(BaseModel):
-    ring_id: int
-
-
-@router.post("/intelligence-package", status_code=status.HTTP_200_OK)
-async def generate_ring_intelligence_package(
-    payload: RingPackageRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(deps.get_current_user)
-):
-    """
-    Generate a PDF intelligence package for a given fraud ring.
-    """
-    try:
-        # Fetch all entities and relationships to compute communities
-        entities_result = await db.execute(select(Entity))
-        entities = entities_result.scalars().all()
-
-        relationships_result = await db.execute(select(Relationship))
-        relationships = relationships_result.scalars().all()
-
-        nodes_list = []
-        entity_map = {}
-        for ent in entities:
-            node = {
-                "id": str(ent.id),
-                "type": ent.type,
-                "value": ent.raw_value,
-                "risk_score": float(ent.risk_score)
-            }
-            nodes_list.append(node)
-            entity_map[str(ent.id)] = ent
-
-        edges_list = []
-        for rel in relationships:
-            edges_list.append({
-                "source": str(rel.entity_id_a),
-                "target": str(rel.entity_id_b),
-                "type": rel.relationship_type,
-                "weight": float(rel.strength)
+        )).scalars().all()
+        score_by_report = {str(s.report_id): s for s in scores}
+        for r in sorted(reports, key=lambda x: x.created_at or datetime.min.replace(tzinfo=timezone.utc)):
+            s = score_by_report.get(str(r.id))
+            if not s:
+                continue
+            if s.severity_band in ("high", "critical"):
+                high_sev += 1
+            if s.scam_category:
+                categories.append(s.scam_category)
+            history.append({
+                "date": r.created_at.isoformat() if r.created_at else None,
+                "score": int(s.threat_score),
+                "category": s.scam_category,
             })
 
-        # Compute communities
-        communities = await asyncio.to_thread(calculate_local_communities, nodes_list, edges_list)
-
-        # Find entities in the requested ring
-        ring_entity_ids = [
-            node_id for node_id, community_id in communities.items()
-            if community_id == payload.ring_id
-        ]
-
-        if not ring_entity_ids:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Ring with id {payload.ring_id} not found or has no members"
-            )
-
-        # Get all reports linked to those entities
-        linked_report_ids = set()
-        for eid_str in ring_entity_ids:
-            try:
-                eid_uuid = uuid.UUID(eid_str)
-            except ValueError:
-                continue
-            re_result = await db.execute(
-                select(ReportEntity).where(ReportEntity.entity_id == eid_uuid)
-            )
-            report_entities = re_result.scalars().all()
-            for re_item in report_entities:
-                linked_report_ids.add(re_item.report_id)
-
-        # Build ring summary data for PDF
-        ring_entities = []
-        for eid_str in ring_entity_ids:
-            ent = entity_map.get(eid_str)
-            if ent:
-                ring_entities.append({
-                    "type": ent.type,
-                    "raw_value": ent.raw_value,
-                    "risk_score": float(ent.risk_score)
-                })
-
-        aggregate_risk = (
-            sum(e["risk_score"] for e in ring_entities) / len(ring_entities)
-            if ring_entities else 0.0
+    rels_count = (await db.execute(
+        select(func.count(Relationship.id)).where(
+            or_(Relationship.entity_id_a == entity.id, Relationship.entity_id_b == entity.id)
         )
+    )).scalar() or 0
+    ring = await _entity_ring(entity.id, db)
 
-        # Build report data for PDF generation
-        report_data = {
-            "id": f"RING-{payload.ring_id:04d}",
-            "source_type": "intelligence_package",
-            "detected_language": "en",
-            "created_at": "Generated on demand",
-            "status": "ring_analysis",
-            "threat_score": round(aggregate_risk),
-            "severity_band": (
-                "critical" if aggregate_risk >= 75 else
-                "high" if aggregate_risk >= 50 else
-                "moderate" if aggregate_risk >= 25 else "low"
-            ),
-            "scam_category": "Fraud Ring Detection",
-            "cleaned_text": (
-                f"Intelligence Package for Fraud Ring #{payload.ring_id}\n"
-                f"Members: {len(ring_entity_ids)} entities\n"
-                f"Linked Reports: {len(linked_report_ids)}\n"
-                f"Aggregate Risk Score: {aggregate_risk:.2f}"
-            ),
-            "entities": ring_entities
-        }
+    factors: List[Dict[str, Any]] = []
+    factors.append({"factor": "Report appearances", "detail": f"Seen in {entity.occurrence_count} report(s)", "weight": entity.occurrence_count})
+    factors.append({"factor": "Network connections", "detail": f"Directly linked to {rels_count} relationship edge(s)", "weight": rels_count})
+    if high_sev:
+        factors.append({"factor": "High-severity complaints", "detail": f"{high_sev} linked complaint(s) scored high/critical", "weight": high_sev})
+    if categories:
+        top_cat, cnt = Counter(categories).most_common(1)[0]
+        factors.append({"factor": "Dominant scam category", "detail": f"{top_cat} ({cnt} complaint(s))", "weight": cnt})
+    if ring:
+        factors.append({"factor": "Fraud ring membership", "detail": f"Member of {ring.neo4j_ring_id} ({ring.risk_tier} tier, {ring.member_count} entities)", "weight": ring.member_count})
 
-        # Generate PDF
-        pdf_buffer = generate_report_pdf(report_data)
-
-        return StreamingResponse(
-            pdf_buffer,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename=ring_{payload.ring_id}_intelligence.pdf"
-            }
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate intelligence package: {str(e)}"
-        )
+    return {
+        "id": str(entity.id),
+        "current_score": float(entity.risk_score),
+        "risk_tier": entity.risk_tier,
+        "factors": factors,
+        "history": history,
+    }
 
 
-# --- 8.5: GET /export - Entity Subgraph Export ---
+# --------------------------------------------------------------------------- #
+# §7.2 / §7.4 Intelligence Package (persisted to intelligence_packages)
+# --------------------------------------------------------------------------- #
+class PackageRequest(BaseModel):
+    ring_id: Optional[str] = None
+    entity_id: Optional[str] = None
 
-@router.get("/export", status_code=status.HTTP_200_OK)
-async def export_entity_subgraph(
-    entity_id: str = Query(...),
+
+async def _find_or_create_ring_case(ring: FraudRing, report_ids: List[uuid.UUID],
+                                    db: AsyncSession) -> Case:
+    case = (await db.execute(
+        select(Case).where(Case.neo4j_ring_id == ring.neo4j_ring_id)
+    )).scalar_one_or_none()
+    if case:
+        return case
+    priority = {"critical": "urgent", "high": "high", "moderate": "medium", "low": "low"}.get(ring.risk_tier, "medium")
+    suffix = ring.neo4j_ring_id.replace("ring-", "").upper()
+    case = Case(
+        case_number=f"RING-{datetime.now(timezone.utc).year}-{suffix}",
+        case_type="ring_level",
+        status="open",
+        priority=priority,
+        neo4j_ring_id=ring.neo4j_ring_id,
+        ai_summary=(
+            f"Auto-created ring investigation for {ring.neo4j_ring_id}: "
+            f"{ring.member_count} correlated entities, {ring.complaint_count} complaints, "
+            f"dominant category {ring.dominant_category or 'n/a'}."
+        ),
+    )
+    db.add(case)
+    await db.flush()
+    # Link correlated reports (best-effort; ignore duplicates).
+    existing = set()
+    for rid in report_ids:
+        if rid in existing:
+            continue
+        existing.add(rid)
+        db.add(CaseReport(case_id=case.id, report_id=rid, linked_reason=f"ring correlation: {ring.neo4j_ring_id}"))
+    return case
+
+
+async def _assemble_ring_package_json(ring: FraudRing, focus_entity_id: Optional[str],
+                                      db: AsyncSession) -> Dict[str, Any]:
+    members = await _ring_member_entities(ring, db)
+    member_uuids = [e.id for e in members]
+    complaints = await _ring_correlated_reports(member_uuids, db)
+    return {
+        "package_kind": "entity" if focus_entity_id else "ring",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "ring": _ring_summary(ring),
+        "focus_entity_id": focus_entity_id,
+        "entities": [{
+            "id": str(e.id), "type": e.type, "value": e.raw_value,
+            "normalized_value": e.normalized_value,
+            "risk_score": float(e.risk_score), "risk_tier": e.risk_tier,
+            "occurrence_count": e.occurrence_count,
+        } for e in members],
+        "correlated_complaints": complaints,
+        "complaint_count": len(complaints),
+        "aggregate_risk_score": float(ring.aggregate_risk_score),
+        "dominant_category": ring.dominant_category,
+    }
+
+
+@router.post("/intelligence-package", status_code=status.HTTP_201_CREATED)
+async def generate_intelligence_package(
+    payload: PackageRequest,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(deps.get_current_user)
+    current_user=Depends(deps.require_officer),
 ):
+    """Assemble and persist a court-ready intelligence package (ring or entity focus).
+
+    Entity-focused packages are only permitted when the entity is part of a
+    detected ring (App Flow §7.2). Both are stored as ring_level packages tied
+    to the ring's case, immutably (versioned).
     """
-    Export an entity's details, its subgraph (depth=2), and all linked report IDs as JSON.
-    """
-    # Validate entity
+    if not payload.ring_id and not payload.entity_id:
+        raise HTTPException(status_code=400, detail="Provide ring_id or entity_id")
+
+    focus_entity_id = None
+    if payload.entity_id:
+        entity = await _get_entity_or_404(payload.entity_id, db)
+        ring = await _entity_ring(entity.id, db)
+        if not ring:
+            raise HTTPException(
+                status_code=409,
+                detail="Entity is not part of a detected fraud ring; package generation is unavailable.",
+            )
+        focus_entity_id = str(entity.id)
+    else:
+        ring = await _get_ring_or_404(payload.ring_id, db)
+
+    package_json = await _assemble_ring_package_json(ring, focus_entity_id, db)
+    report_ids = [uuid.UUID(c["id"]) for c in package_json["correlated_complaints"]]
+
+    case = await _find_or_create_ring_case(ring, report_ids, db)
+
+    # Immutable + versioned: next version for this case.
+    prev = (await db.execute(
+        select(func.max(IntelligencePackage.version)).where(IntelligencePackage.case_id == case.id)
+    )).scalar()
+    version = (prev or 0) + 1
+
+    content_hash = hashlib.sha256(
+        json.dumps(package_json, sort_keys=True, default=str).encode()
+    ).hexdigest()
+
+    pkg = IntelligencePackage(
+        case_id=case.id,
+        package_json=package_json,
+        package_type="ring_level",
+        content_hash=content_hash,
+        version=version,
+        generated_by=current_user.id,
+    )
+    db.add(pkg)
+    await db.commit()
+    await db.refresh(pkg)
+
+    return {
+        "id": str(pkg.id),
+        "case_id": str(case.id),
+        "case_number": case.case_number,
+        "ring_id": ring.neo4j_ring_id,
+        "package_type": pkg.package_type,
+        "version": pkg.version,
+        "content_hash": pkg.content_hash,
+        "generated_at": pkg.generated_at.isoformat() if pkg.generated_at else None,
+        "entity_count": len(package_json["entities"]),
+        "complaint_count": package_json["complaint_count"],
+        "download_url": f"/graph/intelligence-package/{pkg.id}/download",
+    }
+
+
+@router.get("/intelligence-package/{package_id}/download", status_code=status.HTTP_200_OK)
+async def download_intelligence_package(
+    package_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(deps.require_officer),
+):
+    """Render the persisted package snapshot as a downloadable PDF."""
     try:
-        entity_uuid = uuid.UUID(entity_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid entity_id format"
-        )
+        pkg_uuid = uuid.UUID(package_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid package id")
+    pkg = (await db.execute(
+        select(IntelligencePackage).where(IntelligencePackage.id == pkg_uuid)
+    )).scalar_one_or_none()
+    if not pkg:
+        raise HTTPException(status_code=404, detail="Package not found")
 
-    result = await db.execute(select(Entity).where(Entity.id == entity_uuid))
-    entity = result.scalar_one_or_none()
-    if not entity:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Entity not found"
-        )
+    pj = pkg.package_json
+    ring = pj.get("ring", {})
+    lines = [
+        f"Intelligence Package (v{pkg.version})",
+        f"Ring: {ring.get('id')}  |  Members: {ring.get('member_count')}  |  Complaints: {pj.get('complaint_count')}",
+        f"Dominant category: {pj.get('dominant_category') or 'n/a'}",
+        f"Aggregate risk: {pj.get('aggregate_risk_score')}  ({ring.get('risk_tier')})",
+        f"Content hash (SHA-256): {pkg.content_hash}",
+        "",
+        "Member entities:",
+    ]
+    for e in pj.get("entities", []):
+        lines.append(f"  - [{e['type']}] {e['value']}  (risk {e['risk_score']}, {e['risk_tier']})")
+    lines.append("")
+    lines.append("Correlated complaints:")
+    for c in pj.get("correlated_complaints", []):
+        lines.append(f"  - {c['id']}  {c.get('scam_category') or ''}  score={c.get('threat_score')}  {c.get('created_at') or ''}")
 
-    try:
-        # Get subgraph at depth=2
-        subgraph = await _get_entity_subgraph(entity_id, depth=2, db=db)
+    report_data = {
+        "id": f"PKG-{str(pkg.id)[:8]}",
+        "source_type": "intelligence_package",
+        "detected_language": "en",
+        "created_at": pkg.generated_at.isoformat() if pkg.generated_at else "",
+        "status": "ring_analysis",
+        "threat_score": round(float(pj.get("aggregate_risk_score") or 0)),
+        "severity_band": ring.get("risk_tier", "low"),
+        "scam_category": pj.get("dominant_category") or "Fraud Ring",
+        "cleaned_text": "\n".join(lines),
+        "entities": [{
+            "type": e["type"], "raw_value": e["value"], "risk_score": e["risk_score"],
+        } for e in pj.get("entities", [])],
+    }
+    pdf_buffer = generate_report_pdf(report_data)
+    return StreamingResponse(
+        pdf_buffer, media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=intelligence_package_{pkg.id}.pdf"},
+    )
 
-        # Get all linked report IDs
-        re_result = await db.execute(
-            select(ReportEntity).where(ReportEntity.entity_id == entity_uuid)
-        )
-        report_entities = re_result.scalars().all()
-        linked_reports = [str(re.report_id) for re in report_entities]
 
-        return {
-            "entity": {
-                "id": str(entity.id),
-                "type": entity.type,
-                "raw_value": entity.raw_value,
-                "normalized_value": entity.normalized_value,
-                "risk_score": float(entity.risk_score),
-                "risk_tier": entity.risk_tier,
-                "occurrence_count": entity.occurrence_count,
-                "first_seen_at": entity.first_seen_at.isoformat() if entity.first_seen_at else None,
-                "last_seen_at": entity.last_seen_at.isoformat() if entity.last_seen_at else None
-            },
-            "subgraph": subgraph,
-            "linked_reports": linked_reports
-        }
+# --------------------------------------------------------------------------- #
+# §7.4 Export Evidence — ring subgraph + complaint IDs bundle
+# --------------------------------------------------------------------------- #
+@router.get("/rings/{ring_id}/export", status_code=status.HTTP_200_OK)
+async def export_ring_evidence(
+    ring_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(deps.require_officer),
+):
+    """Downloadable JSON bundle: ring subgraph + correlated complaint IDs."""
+    ring = await _get_ring_or_404(ring_id, db)
+    members = await _ring_member_entities(ring, db)
+    member_uuids = [e.id for e in members]
+    edges = []
+    if member_uuids:
+        rels = (await db.execute(
+            select(Relationship).where(
+                Relationship.entity_id_a.in_(member_uuids),
+                Relationship.entity_id_b.in_(member_uuids),
+            )
+        )).scalars().all()
+        edges = [{
+            "source": str(rel.entity_id_a), "target": str(rel.entity_id_b),
+            "type": rel.relationship_type, "weight": float(rel.strength),
+        } for rel in rels]
+    complaints = await _ring_correlated_reports(member_uuids, db)
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to export entity subgraph: {str(e)}"
-        )
+    bundle = {
+        "ring": _ring_summary(ring),
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "exported_by": str(current_user.id),
+        "subgraph": {"nodes": [_entity_node(e) for e in members], "edges": edges},
+        "complaint_ids": [c["id"] for c in complaints],
+        "complaints": complaints,
+    }
+    payload = json.dumps(bundle, indent=2, default=str).encode()
+    import io
+    return StreamingResponse(
+        io.BytesIO(payload), media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename=ring_evidence_{ring.neo4j_ring_id}.json"},
+    )
