@@ -38,6 +38,9 @@ export function Header({
   }, []);
 
   async function handleLogout() {
+    // §10.4 Logout confirmation. Uses the same native-confirm gate the app
+    // already uses for its other confirmations, rather than a new dialog pattern.
+    if (!confirm("Log out of Truvia?")) return;
     await logout();
     router.push("/auth");
   }
