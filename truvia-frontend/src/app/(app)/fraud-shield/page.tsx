@@ -122,6 +122,15 @@ export default function FraudShieldPage() {
 
   async function handleEscalate() {
     if (!report) return;
+    // §10.1 "Report to Police" confirmation before submitting to the police queue.
+    // Uses the same native-confirm gate the app already uses for its other
+    // destructive/irreversible confirmations (§10.6 suspend, §10.8 remove doc).
+    if (
+      !confirm(
+        "This will submit your report, including all uploaded evidence, to the police complaint queue. Continue?"
+      )
+    )
+      return;
     setEscalating(true);
     setError(null);
     try {
