@@ -104,51 +104,71 @@ class ThreatEvaluatorAgent:
 
     async def _analyze_text(self, text: str) -> tuple[int, str, str, float, dict, bool]:
         """
-        Performs threat score calculations.
+        Performs threat score calculations. Attempts the full LLM structured-
+        reasoning pass first, falling back to the rule-based engine on any failure.
         """
         if self.client:
             try:
-                prompt = (
-                    "You are a cybercrime investigator analyzing a report of a digital scam.\n"
-                    f"Report Text: \"\"\"\n{text}\n\"\"\"\n\n"
-                    "Analyze the text and extract:\n"
-                    "1. Threat Score: integer from 0 (completely safe) to 100 (confirmed malicious scam).\n"
-                    "2. Severity Band: 'low' (0-39), 'moderate' (40-69), 'high' (70-89), or 'critical' (90-100).\n"
-                    "3. Scam Category: classification (e.g., 'Digital Arrest', 'UPI Refund Scam', 'KYC Verification Scam', 'Lottery/Job Scam', 'Imposter Scam').\n"
-                    "4. Confidence Score: float between 0.0 and 1.0.\n"
-                    "5. Reasoning: a detailed explanation containing:\n"
-                    "   - 'key_indicators': list of specific red flags found (e.g. urgent threats, UPI requests).\n"
-                    "   - 'victim_instructions': safety tips or instructions for the citizen.\n"
-                    "   - 'risk_explanation': brief explanation of why this was scored as such.\n\n"
-                    "Format the response EXACTLY as a JSON object with keys:\n"
-                    "'threat_score', 'severity_band', 'scam_category', 'confidence_score', 'reasoning'."
-                )
-
-                response = await asyncio.to_thread(
-                    self.client.generate_content,
-                    prompt,
-                    generation_config={"response_mime_type": "application/json"}
-                )
-
-                res_content = response.text.strip()
-                if "```json" in res_content:
-                    res_content = res_content.split("```json")[1].split("```")[0].strip()
-                elif "```" in res_content:
-                    res_content = res_content.split("```")[1].split("```")[0].strip()
-
-                data = json.loads(res_content)
-                return (
-                    int(data.get("threat_score", 50)),
-                    data.get("severity_band", "moderate"),
-                    data.get("scam_category", "unclassified"),
-                    float(data.get("confidence_score", 0.90)),
-                    data.get("reasoning", {}),
-                    False
-                )
+                return await self._llm_analyze(text)
             except Exception as e:
                 logger.error(f"Gemini threat evaluation failed: {str(e)}. Falling back to local rule-engine.")
 
-        # Local rule engine fallback
+        return self.rule_based_analyze(text)
+
+    async def _llm_analyze(self, text: str) -> tuple[int, str, str, float, dict, bool]:
+        """Full LLM structured-reasoning pass (Agent 2).
+
+        Reused as-is by the Live Scam Interceptor, which invokes it per-turn
+        only once the rule-based cumulative score reaches 'moderate' or above
+        (cost/latency-aware conditional call, Spec §7.3). Raises on failure so
+        callers can decide whether to fall back to rule-based scoring.
+        """
+        prompt = (
+            "You are a cybercrime investigator analyzing a report of a digital scam.\n"
+            f"Report Text: \"\"\"\n{text}\n\"\"\"\n\n"
+            "Analyze the text and extract:\n"
+            "1. Threat Score: integer from 0 (completely safe) to 100 (confirmed malicious scam).\n"
+            "2. Severity Band: 'low' (0-39), 'moderate' (40-69), 'high' (70-89), or 'critical' (90-100).\n"
+            "3. Scam Category: classification (e.g., 'Digital Arrest', 'UPI Refund Scam', 'KYC Verification Scam', 'Lottery/Job Scam', 'Imposter Scam').\n"
+            "4. Confidence Score: float between 0.0 and 1.0.\n"
+            "5. Reasoning: a detailed explanation containing:\n"
+            "   - 'key_indicators': list of specific red flags found (e.g. urgent threats, UPI requests).\n"
+            "   - 'victim_instructions': safety tips or instructions for the citizen.\n"
+            "   - 'risk_explanation': brief explanation of why this was scored as such.\n\n"
+            "Format the response EXACTLY as a JSON object with keys:\n"
+            "'threat_score', 'severity_band', 'scam_category', 'confidence_score', 'reasoning'."
+        )
+
+        response = await asyncio.to_thread(
+            self.client.generate_content,
+            prompt,
+            generation_config={"response_mime_type": "application/json"}
+        )
+
+        res_content = response.text.strip()
+        if "```json" in res_content:
+            res_content = res_content.split("```json")[1].split("```")[0].strip()
+        elif "```" in res_content:
+            res_content = res_content.split("```")[1].split("```")[0].strip()
+
+        data = json.loads(res_content)
+        return (
+            int(data.get("threat_score", 50)),
+            data.get("severity_band", "moderate"),
+            data.get("scam_category", "unclassified"),
+            float(data.get("confidence_score", 0.90)),
+            data.get("reasoning", {}),
+            False
+        )
+
+    def rule_based_analyze(self, text: str) -> tuple[int, str, str, float, dict, bool]:
+        """Rule-based red-flag extractor (Agent 2).
+
+        Returns (score, severity_band, scam_category, confidence, reasoning, degraded=True).
+        Reused per-turn by the Live Scam Interceptor's turn scorer — do NOT
+        duplicate this logic; call this method instead (Spec §7.1).
+        """
+        # Local rule engine
         text_lower = text.lower()
         score_val = 15  # Default baseline
         cat = "Suspected Scam"

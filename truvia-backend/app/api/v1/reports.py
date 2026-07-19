@@ -112,7 +112,7 @@ async def submit_report(
 
 def _report_filter_conditions(
     current_user, search, status_f, source_type, category,
-    score_min, score_max, date_from, date_to,
+    score_min, score_max, date_from, date_to, city=None,
 ):
     """Shared WHERE conditions for the complaint table + CSV export (real narrowing)."""
     conds = []
@@ -125,6 +125,9 @@ def _report_filter_conditions(
         conds.append(Report.status == status_f)
     if source_type:
         conds.append(Report.source_type == source_type)
+    # City drill-through (from the Geospatial priority view, Module 6).
+    if city:
+        conds.append(Report.city == city)
 
     # category + score range resolve against the report's CURRENT threat score.
     ts_conds = [ThreatScore.is_current == True]
@@ -160,6 +163,7 @@ async def list_reports(
     score_max: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    city: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
@@ -167,7 +171,7 @@ async def list_reports(
 ):
     conds = _report_filter_conditions(
         current_user, search, status, source_type, category,
-        score_min, score_max, date_from, date_to,
+        score_min, score_max, date_from, date_to, city,
     )
     query = (
         select(Report)
@@ -190,13 +194,14 @@ async def export_reports_csv(
     score_max: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    city: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
     """Export the CURRENTLY-FILTERED complaint set as a real CSV (not a static file)."""
     conds = _report_filter_conditions(
         current_user, search, status, source_type, category,
-        score_min, score_max, date_from, date_to,
+        score_min, score_max, date_from, date_to, city,
     )
     query = select(Report).options(selectinload(Report.threat_scores))
     if conds:

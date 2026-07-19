@@ -8,6 +8,7 @@ from app.models.knowledge import KnowledgeBase, KnowledgeBaseChunk
 from app.models.alert import Alert, Notification
 from app.models.settings import SystemSetting
 from app.models.audit import AuditLog
+from app.models.live_session import LiveSession, LiveSessionTurn
 
 __all__ = [
     "Base",
@@ -31,5 +32,7 @@ __all__ = [
     "Alert",
     "Notification",
     "SystemSetting",
-    "AuditLog"
+    "AuditLog",
+    "LiveSession",
+    "LiveSessionTurn"
 ]
