@@ -24,6 +24,8 @@ function ReportsInner() {
   // Pre-filter by scam category when arriving from a Dashboard emerging-trend row
   // (?category=…, App Flow §9). Applied server-side via the /reports category param.
   const [category, setCategory] = useState(searchParams.get("category") ?? "");
+  // Pre-filter by city when arriving from the Geospatial priority view (?city=…, Module 6).
+  const [city, setCity] = useState(searchParams.get("city") ?? "");
   const [hasMore, setHasMore] = useState(false);
 
   const load = useCallback(async () => {
@@ -35,6 +37,7 @@ function ReportsInner() {
       if (status) params.set("status", status);
       if (sourceType) params.set("source_type", sourceType);
       if (category) params.set("category", category);
+      if (city) params.set("city", city);
       params.set("limit", String(PAGE_SIZE));
       params.set("offset", String(page * PAGE_SIZE));
       const data = await api.get<Report[]>(`/reports?${params.toString()}`);
@@ -45,7 +48,7 @@ function ReportsInner() {
     } finally {
       setLoading(false);
     }
-  }, [search, status, sourceType, category, page]);
+  }, [search, status, sourceType, category, city, page]);
 
   useEffect(() => {
     load();
@@ -65,6 +68,7 @@ function ReportsInner() {
     if (status) params.set("status", status);
     if (sourceType) params.set("source_type", sourceType);
     if (category) params.set("category", category);
+    if (city) params.set("city", city);
     try {
       await api.download(`/reports/export?${params.toString()}`, "truvia-complaints-export.csv");
     } catch {
@@ -160,6 +164,25 @@ function ReportsInner() {
                 className="p-0.5 rounded-full hover:bg-primary/20 transition-colors"
                 title="Clear category filter"
                 aria-label="Clear category filter"
+              >
+                <Icon name="close" className="text-[14px]" />
+              </button>
+            </span>
+          </div>
+        )}
+        {city && (
+          <div className="mt-stack-sm flex items-center gap-stack-sm">
+            <span className="font-label-md text-on-surface-variant/70 uppercase text-[11px]">City</span>
+            <span className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full bg-primary/15 text-primary text-[12px] font-bold">
+              {city}
+              <button
+                onClick={() => {
+                  setPage(0);
+                  setCity("");
+                }}
+                className="p-0.5 rounded-full hover:bg-primary/20 transition-colors"
+                title="Clear city filter"
+                aria-label="Clear city filter"
               >
                 <Icon name="close" className="text-[14px]" />
               </button>

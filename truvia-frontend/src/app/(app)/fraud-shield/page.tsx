@@ -210,6 +210,13 @@ export default function FraudShieldPage() {
             Deploy AI-powered analysis to detect phishing, social engineering, and financial fraud in
             screenshots, audio, or text messages.
           </p>
+          <a
+            href="/live-shield"
+            className="mt-stack-md inline-flex items-center gap-stack-sm px-stack-lg py-stack-md bg-primary-container text-white font-label-md uppercase tracking-widest rounded-xl hover:brightness-110 active:scale-[0.98] transition-all"
+          >
+            <Icon name="record_voice_over" className="text-[18px]" />
+            Start a Live Session
+          </a>
         </header>
 
         <div className="grid grid-cols-12 gap-gutter">

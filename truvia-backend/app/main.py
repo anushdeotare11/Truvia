@@ -2,7 +2,7 @@ from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.core.logging import logger
-from app.api.v1 import auth, reports, chat, graph, entities, cases, alerts, dashboard, admin
+from app.api.v1 import auth, reports, chat, graph, entities, cases, alerts, dashboard, admin, live_sessions, geo
 from sqlalchemy import text
 from app.data.postgres_client import engine
 from app.data.neo4j_client import neo4j_client
@@ -40,6 +40,8 @@ app.include_router(cases.router, prefix="/api/v1/cases", tags=["Cyber Investigat
 app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Predictive Threats & Alerts"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Analytics Dashboard"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin Journey"])
+app.include_router(live_sessions.router, prefix="/api/v1/live-sessions", tags=["Live Scam Interceptor"])
+app.include_router(geo.router, prefix="/api/v1/geo", tags=["Geospatial Crime Intelligence"])
 
 @app.on_event("startup")
 async def startup_event():
