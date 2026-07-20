@@ -2,22 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════════════════════
+   TRUVIA DESIGN SYSTEM v3.0
+   Style: HUD/Cyberpunk Hybrid (UI UX Pro Max × 21st.dev)
+   Typography: Exo (headings) + Inter (body) + JetBrains Mono (data/labels)
+   Palette: Electric Blue primary, Cyan accent, Matrix Green signals
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 :root {
   color-scheme: dark;
+  --color-primary: #658aff;
+  --color-accent: #00f4fe;
+  --color-neon: #00ff41;
+  --color-surface: #121317;
+  --color-bg: #06070a;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 html {
+  font-size: 87.5%; /* 14px base — global downscale for normal sizing */
   scroll-behavior: smooth;
 }
 
 body {
-  background-color: #0e0e13;
-  color: #e4e1e9;
-  font-family: var(--font-manrope), Manrope, sans-serif;
+  background-color: #06070a;
+  color: #e3e2e7;
+  font-family: var(--font-inter), Inter, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Material Symbols */
+/* ─── Material Symbols ─────────────────────────────────────────────────────── */
 .material-symbols-outlined {
   font-family: "Material Symbols Outlined";
   font-weight: normal;
@@ -40,78 +55,472 @@ body {
   font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
 }
 
-/* Scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #0e0e13;
-}
-::-webkit-scrollbar-thumb {
-  background: #35343a;
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #464555;
-}
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #464555;
-  border-radius: 10px;
+/* ─── Scrollbars (Slim HUD style) ─────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #06070a; }
+::-webkit-scrollbar-thumb { background: #1e1f23; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #343538; }
+.custom-scrollbar::-webkit-scrollbar { width: 3px; height: 3px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: #06070a; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #1e1f23; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #343538; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   BUTTON SYSTEM (21st.dev-inspired: GlowEffect + ShimmerButton + BorderBeam)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+  /* ─── Primary CTA (Glow Effect Button – inspired by 21st.dev/ibelick/glow-effect) ── */
+  .btn-primary {
+    @apply relative inline-flex items-center justify-center gap-2
+           px-6 py-3 rounded-xl font-heading font-semibold text-[15px]
+           bg-primary text-on-primary
+           transition-all duration-300 ease-out
+           cursor-pointer select-none;
+    box-shadow:
+      0 0 0 1px rgba(101, 138, 255, 0.3),
+      0 4px 16px rgba(101, 138, 255, 0.2),
+      0 0 40px rgba(101, 138, 255, 0.1);
+  }
+  .btn-primary:hover {
+    @apply scale-[1.03];
+    background: #658aff;
+    box-shadow:
+      0 0 0 1px rgba(101, 138, 255, 0.5),
+      0 6px 24px rgba(101, 138, 255, 0.35),
+      0 0 60px rgba(0, 244, 254, 0.15);
+  }
+  .btn-primary:active { @apply scale-[0.97]; }
+
+  /* ─── Accent/CTA (Neon Cyan – for high-emphasis actions) ── */
+  .btn-accent {
+    @apply relative inline-flex items-center justify-center gap-2
+           px-6 py-3 rounded-xl font-heading font-semibold text-[15px]
+           bg-transparent text-accent border border-accent/40
+           transition-all duration-300 ease-out
+           cursor-pointer select-none;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.1), inset 0 0 12px rgba(0, 240, 255, 0.05);
+  }
+  .btn-accent:hover {
+    @apply scale-[1.02];
+    background: rgba(0, 240, 255, 0.08);
+    border-color: rgba(0, 240, 255, 0.7);
+    box-shadow:
+      0 0 30px rgba(0, 240, 255, 0.25),
+      inset 0 0 20px rgba(0, 240, 255, 0.08);
+  }
+  .btn-accent:active { @apply scale-[0.97]; }
+
+  /* ─── Ghost Button (HUD-style outline) ── */
+  .btn-ghost {
+    @apply relative inline-flex items-center justify-center gap-2
+           px-6 py-3 rounded-xl font-heading font-medium text-[15px]
+           bg-transparent text-on-surface-variant
+           border border-outline-variant
+           transition-all duration-300 ease-out
+           cursor-pointer select-none;
+  }
+  .btn-ghost:hover {
+    @apply text-accent;
+    border-color: rgba(0, 240, 255, 0.4);
+    background: rgba(0, 240, 255, 0.04);
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.08);
+  }
+  .btn-ghost:active { @apply scale-[0.97]; }
+
+  /* ─── Danger Button ── */
+  .btn-danger {
+    @apply relative inline-flex items-center justify-center gap-2
+           px-6 py-3 rounded-xl font-heading font-semibold text-[15px]
+           bg-error/10 text-error border border-error/30
+           transition-all duration-300 ease-out
+           cursor-pointer select-none;
+  }
+  .btn-danger:hover {
+    background: rgba(255, 71, 87, 0.15);
+    border-color: rgba(255, 71, 87, 0.6);
+    box-shadow: 0 0 24px rgba(255, 71, 87, 0.2);
+  }
+
+  /* ─── Small Button Variant ── */
+  .btn-sm {
+    @apply px-4 py-2 text-[13px] rounded-lg;
+  }
+
+  /* ─── Icon-only Button ── */
+  .btn-icon {
+    @apply inline-flex items-center justify-center w-10 h-10 rounded-xl
+           bg-transparent text-on-surface-variant border border-outline-variant
+           transition-all duration-200 cursor-pointer;
+  }
+  .btn-icon:hover {
+    @apply text-accent border-accent/40;
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.12);
+  }
 }
 
-/* Effects */
-.glowing-border {
-  box-shadow: 0 0 15px rgba(93, 95, 239, 0.3);
-  border: 1px solid rgba(193, 193, 255, 0.2);
+/* ═══════════════════════════════════════════════════════════════════════════════
+   21st.dev EFFECTS (implemented with pure CSS + Tailwind, no external deps)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Shimmer Sweep (inspired by magicui ShimmerButton) ───────────────────── */
+.btn-shimmer { position: relative; overflow: hidden; }
+.btn-shimmer::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: linear-gradient(
+    110deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.12) 50%,
+    transparent 75%
+  );
+  transform: translateX(-100%);
+  transition: none;
 }
-.glow-effect {
-  box-shadow: 0 0 20px rgba(193, 193, 255, 0.1);
+.btn-shimmer:hover::before {
+  animation: shimmer-sweep 0.8s ease forwards;
 }
-.glow-dot {
-  box-shadow: 0 0 8px currentColor;
+@keyframes shimmer-sweep {
+  to { transform: translateX(100%); }
 }
-.hero-gradient {
-  background: radial-gradient(circle at top right, rgba(93, 95, 239, 0.15), transparent 60%),
-    radial-gradient(circle at bottom left, rgba(61, 62, 135, 0.2), transparent 50%), #0e0e13;
+
+/* ─── Border Beam (inspired by magicui BorderBeam) ────────────────────────── */
+.border-beam {
+  position: relative;
+  overflow: hidden;
 }
+.border-beam::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--beam-angle, 0deg), transparent 60%, var(--color-accent) 80%, transparent 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: beam-rotate 4s linear infinite;
+  pointer-events: none;
+}
+@keyframes beam-rotate {
+  to { --beam-angle: 360deg; }
+}
+@property --beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* ─── Neon Glow Pulse (UI UX Pro Max cyberpunk recommendation) ──────────── */
+.neon-glow {
+  box-shadow:
+    0 0 8px rgba(0, 240, 255, 0.3),
+    0 0 20px rgba(0, 240, 255, 0.15),
+    inset 0 0 8px rgba(0, 240, 255, 0.05);
+  animation: glow-breathe 3s ease-in-out infinite;
+}
+@keyframes glow-breathe {
+  0%, 100% { box-shadow: 0 0 8px rgba(0, 240, 255, 0.3), 0 0 20px rgba(0, 240, 255, 0.15), inset 0 0 8px rgba(0, 240, 255, 0.05); }
+  50% { box-shadow: 0 0 14px rgba(0, 240, 255, 0.45), 0 0 35px rgba(0, 240, 255, 0.25), inset 0 0 12px rgba(0, 240, 255, 0.08); }
+}
+
+/* ─── Color-Shift Glow (inspired by 21st.dev GlowEffect colorShift mode) ── */
+.glow-shift {
+  position: relative;
+}
+.glow-shift::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  background: linear-gradient(
+    var(--glow-angle, 0deg),
+    #4da2ff,
+    #00f0ff,
+    #00ff41,
+    #4da2ff
+  );
+  filter: blur(12px);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  z-index: -1;
+  animation: glow-rotate 4s linear infinite;
+}
+.glow-shift:hover::before { opacity: 0.6; }
+@keyframes glow-rotate {
+  to { --glow-angle: 360deg; }
+}
+@property --glow-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* ─── Magnetic Hover (subtle perspective tilt on hover) ────────────────────── */
+.magnetic-hover {
+  transition: transform 0.3s var(--ease-out-expo);
+}
+.magnetic-hover:hover {
+  transform: translateY(-3px) scale(1.01);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CARD & SURFACE SYSTEM
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.card-hud {
+  background: rgba(11, 18, 32, 0.85);
+  border: 1px solid rgba(0, 240, 255, 0.08);
+  border-radius: 1rem;
+  backdrop-filter: blur(12px);
+  transition: all 0.35s var(--ease-out-expo);
+}
+.card-hud:hover {
+  border-color: rgba(0, 240, 255, 0.25);
+  box-shadow:
+    0 0 24px rgba(0, 240, 255, 0.08),
+    0 8px 32px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2px);
+}
+
 .bento-card {
-  background: #131318;
-  border: 1px solid #2a292f;
-  border-radius: 12px;
+  background: rgba(13, 14, 18, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top-color: rgba(255, 255, 255, 0.12);
+  border-left-color: rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.35s var(--ease-out-expo);
 }
 .bento-card:hover {
-  border-color: #5d5fef;
-  box-shadow: 0 0 15px rgba(93, 95, 239, 0.15);
-}
-.card-obsidian {
-  background: #1b1b20;
-  border: 1px solid #35343a;
-  border-radius: 1rem;
-}
-.graph-bg {
-  background: radial-gradient(circle at center, #1b1b20 0%, #0e0e13 100%);
-}
-.glass-panel {
-  background: rgba(31, 31, 37, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(144, 143, 160, 0.1);
-}
-.upload-dashed {
-  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%23908FA0' stroke-width='2' stroke-dasharray='10%2c 10' stroke-linecap='square'/%3e%3c/svg%3e");
+  border-color: rgba(0, 244, 254, 0.3);
+  box-shadow: 0 0 30px rgba(0, 244, 254, 0.12), 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
+.card-obsidian {
+  background: rgba(13, 14, 18, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top-color: rgba(255, 255, 255, 0.12);
+  border-left-color: rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  transition: all 0.35s var(--ease-out-expo);
+}
+.card-obsidian:hover {
+  border-color: rgba(0, 244, 254, 0.3);
+  box-shadow: 0 0 30px rgba(0, 244, 254, 0.12);
+}
+
+.glass-panel {
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  background: rgba(13, 14, 18, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top-color: rgba(255, 255, 255, 0.12);
+  border-left-color: rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  box-shadow: 0 8px 32px 0 rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+
+/* ─── Obsidian Glass utilities ─── */
+.obsidian-panel {
+  background: rgba(13, 14, 18, 0.95);
+  border: 1px solid rgba(0, 244, 254, 0.2);
+  box-shadow: 0 0 30px rgba(0,0,0,0.6), inset 0 0 1px 1px rgba(0,244,254,0.05);
+  border-radius: 24px;
+}
+.electric-edge { border-left: 2px solid #00f4fe; box-shadow: -5px 0 15px -5px rgba(0, 244, 254, 0.3); }
+.primary-glow  { box-shadow: 0 0 40px 0 rgba(101,138,255,0.2); }
+.cyan-glow     { box-shadow: 0 0 30px 0 rgba(0,244,254,0.25); }
+.critical-glow { box-shadow: 0 0 50px 0 rgba(147,0,10,0.3); }
+.btn-bloom { background: linear-gradient(135deg,#4f7bff 0%,#00f4fe 100%); box-shadow: 0 0 20px rgba(79,123,255,0.3); transition: all .3s ease; }
+.btn-bloom:hover { box-shadow: 0 0 30px rgba(0,244,254,0.5); transform: translateY(-1px); }
+.btn-bloom:active { transform: scale(0.98); }
+.input-glass { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); transition: all .3s cubic-bezier(0.4,0,0.2,1); }
+.input-glass:focus { background: rgba(79,123,255,0.05); border-bottom-color: #00dce5; box-shadow: 0 10px 20px -10px rgba(0,244,254,0.2); }
+@keyframes pulse-glow { 0%,100% { opacity:.6; transform:scale(1); } 50% { opacity:1; transform:scale(1.1); } }
+.pulse { animation: pulse-glow 2s infinite ease-in-out; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   EFFECTS & DECORATORS
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.glowing-border {
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+  border: 1px solid rgba(0, 240, 255, 0.15);
+}
+.glow-effect { box-shadow: 0 0 20px rgba(0, 240, 255, 0.12); }
+.glow-dot { box-shadow: 0 0 8px currentColor; }
+
+.hero-gradient {
+  background:
+    radial-gradient(circle at top right, rgba(0, 240, 255, 0.12), transparent 60%),
+    radial-gradient(circle at bottom left, rgba(77, 162, 255, 0.15), transparent 50%),
+    #04060c;
+}
+
+.graph-bg {
+  background: radial-gradient(circle at center, #0c1526 0%, #04060c 100%);
+}
+
+.upload-dashed {
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%2300f0ff' stroke-width='1.5' stroke-dasharray='10%2c 10' stroke-linecap='square' stroke-opacity='0.3'/%3e%3c/svg%3e");
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   ANIMATIONS (UI UX Pro Max motion recommendations + 21st.dev patterns)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@keyframes aurora {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  33%  { transform: translate3d(4%, -3%, 0) rotate(5deg) scale(1.1); }
+  66%  { transform: translate3d(-3%, 3%, 0) rotate(-4deg) scale(0.95); }
+  100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+}
+@keyframes grid-drift {
+  from { background-position: 0 0; }
+  to   { background-position: 40px 40px; }
+}
+@keyframes text-shimmer {
+  from { background-position: 200% center; }
+  to   { background-position: -200% center; }
+}
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-14px); }
+}
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.35); }
+  70%  { box-shadow: 0 0 0 14px rgba(0, 240, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0); }
+}
+@keyframes scan-line {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  50%  { opacity: 0.6; }
+  100% { transform: translateY(2000%); opacity: 0; }
+}
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Ambient aurora blobs ─── */
+.aurora-field { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.aurora-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  mix-blend-mode: screen;
+  opacity: 0.55;
+  animation: aurora 20s ease-in-out infinite;
+}
+
+/* ─── Animated intelligence grid ─── */
+.grid-overlay {
+  background-image:
+    linear-gradient(rgba(0, 244, 254, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 244, 254, 0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: grid-drift 22s linear infinite;
+  mask-image: radial-gradient(circle at 50% 40%, black 0%, transparent 78%);
+  -webkit-mask-image: radial-gradient(circle at 50% 40%, black 0%, transparent 78%);
+}
+
+/* ─── Noise texture ─── */
+.noise-overlay {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3e");
+  opacity: 0.03;
+  mix-blend-mode: overlay;
+}
+
+/* ─── Gradient + shimmer text ─── */
+.text-gradient {
+  background: linear-gradient(135deg, #ffffff 0%, #00f0ff 50%, #4da2ff 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+.shimmer-text {
+  background: linear-gradient(90deg, #00f0ff 20%, #ffffff 50%, #00f0ff 80%);
+  background-size: 200% auto;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: text-shimmer 5s linear infinite;
+}
+
+/* ─── Button sheen sweep on hover ─── */
+.btn-shine { position: relative; overflow: hidden; }
+.btn-shine::after {
+  content: ""; position: absolute; top: 0; left: 0; width: 40%; height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  transform: translateX(-160%) skewX(-20deg);
+}
+.btn-shine:hover::after { animation: btn-sheen 0.8s ease; }
+@keyframes btn-sheen {
+  from { transform: translateX(-160%) skewX(-20deg); }
+  to   { transform: translateX(260%) skewX(-20deg); }
+}
+
+.float-slow { animation: float-y 7s ease-in-out infinite; }
+.pulse-ring { animation: pulse-ring 2.6s ease-out infinite; }
+
+/* ─── Console scan line ─── */
+.scan-line {
+  position: absolute; left: 0; right: 0; height: 40%;
+  background: linear-gradient(to bottom, transparent, rgba(0, 240, 255, 0.06), transparent);
+  animation: scan-line 6s linear infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   LANDING PAGE THEME (Sui-inspired + HUD accents)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.sui-hero-bg {
+  background:
+    radial-gradient(120% 85% at 50% 6%, rgba(4,7,14,0) 42%, rgba(4,7,14,0.55) 100%),
+    linear-gradient(180deg, #04060c 0%, #060e1e 18%, #0a2350 44%, #12448f 66%, #1e63c8 85%, #2f8bf6 100%);
+}
+.sui-section-dark { background-color: #070b14; }
+.sui-section-deep { background-color: #08132a; }
+
+.sui-glow-text {
+  color: #eef5ff;
+  text-shadow: 0 0 30px rgba(0, 240, 255, 0.4), 0 0 72px rgba(77, 162, 255, 0.3);
+}
+.sui-glow-haze { color: #bcd8ff; filter: blur(24px); opacity: 0.5; }
+
+.sui-btn-blue {
+  background: linear-gradient(135deg, #4da2ff 0%, #2f8bf6 100%);
+  color: #06122a;
+  font-family: var(--font-exo), Exo, sans-serif;
+  font-weight: 600;
+  transition: all 0.3s var(--ease-out-expo);
+  box-shadow: 0 4px 16px rgba(77, 162, 255, 0.25);
+}
+.sui-btn-blue:hover {
+  background: linear-gradient(135deg, #6cb4ff 0%, #4da2ff 100%);
+  box-shadow: 0 6px 28px rgba(77, 162, 255, 0.45), 0 0 40px rgba(0, 240, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.sui-blue-glow { box-shadow: 0 0 44px rgba(0, 240, 255, 0.15), 0 0 80px rgba(77, 162, 255, 0.1); }
+.sui-border-glow {
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.1), inset 0 0 20px rgba(0, 240, 255, 0.03);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   ACCESSIBILITY: Reduced Motion
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob, .grid-overlay, .shimmer-text, .float-slow,
+  .pulse-ring, .scan-line, .neon-glow, .glow-shift::before,
+  .border-beam::after, .btn-shimmer::before {
+    animation: none !important;
+  }
+  .magnetic-hover:hover { transform: none; }
+  .btn-primary:hover, .btn-accent:hover, .btn-ghost:hover {
+    transform: none;
   }
 }

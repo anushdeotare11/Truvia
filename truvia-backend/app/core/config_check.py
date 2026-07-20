@@ -45,7 +45,8 @@ async def verify_gemini_key_background() -> None:
 
     key = settings.GOOGLE_API_KEY
     try:
-        genai.configure(api_key=key.strip())
+        from app.core.genai_helper import configure_genai
+        configure_genai(key)
         model = genai.GenerativeModel("gemini-2.0-flash")
         logger.info("Verifying Google Gemini API key credentials in background...")
         await asyncio.wait_for(

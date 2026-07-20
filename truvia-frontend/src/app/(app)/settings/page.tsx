@@ -99,7 +99,7 @@ function ProfileTab({ user }: { user: User | null }) {
               <span className="font-label-md text-primary-fixed-dim">High-Assurance</span>
             </div>
             <div className="h-1.5 bg-background/50 rounded-full overflow-hidden">
-              <div className="h-full bg-primary w-[92%] shadow-[0_0_8px_rgba(193,193,255,0.4)]" />
+              <div className="h-full bg-primary w-[92%] shadow-[0_0_8px_rgba(77,162,255,0.4)]" />
             </div>
             <p className="text-[12px] opacity-70 leading-relaxed italic">
               All connections encrypted. No anomalies detected in the current session.

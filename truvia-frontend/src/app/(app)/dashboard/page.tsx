@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import {
+  motion,
+  animate,
+  useInView,
+  useReducedMotion,
+  type Variants,
+} from "framer-motion";
 import {
   AreaChart,
   Area,
-  BarChart,
-  Bar,
-  Cell,
   XAxis,
   YAxis,
   Tooltip,
@@ -20,6 +24,97 @@ import { api } from "@/lib/api";
 import type { DashboardStats, Report, PredictiveAlert, GeoBreakdown, ScoreDistribution, TimelineEvent } from "@/lib/types";
 import { severityBadge, severityText, reportTitle, formatDateTime, shortId } from "@/lib/format";
 
+// ─── Count-up number (respects reduced motion) ─────────────────────────────
+function CountUp({ value, className }: { value: number; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-40px" });
+  const reduce = useReducedMotion();
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    if (!inView) return;
+    if (reduce) {
+      setDisplay(value);
+      return;
+    }
+    const controls = animate(0, value, {
+      duration: 1.2,
+      ease: [0.16, 1, 0.3, 1],
+      onUpdate: (v) => setDisplay(v),
+    });
+    return () => controls.stop();
+  }, [inView, value, reduce]);
+
+  return (
+    <span ref={ref} className={className}>
+      {Math.round(display).toLocaleString()}
+    </span>
+  );
+}
+
+// ─── Circular index ring (AVG INDEX) ───────────────────────────────────────
+function IndexRing({ value, size = 132 }: { value: number; size?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-40px" });
+  const reduce = useReducedMotion();
+  const [progress, setProgress] = useState(0);
+
+  const r = 54;
+  const circumference = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(100, value));
+  const offset = circumference - (circumference * (clamped * progress)) / 100;
+
+  useEffect(() => {
+    if (!inView) return;
+    if (reduce) {
+      setProgress(1);
+      return;
+    }
+    const controls = animate(0, 1, {
+      duration: 1.3,
+      ease: [0.16, 1, 0.3, 1],
+      onUpdate: (v) => setProgress(v),
+    });
+    return () => controls.stop();
+  }, [inView, reduce]);
+
+  return (
+    <div ref={ref} className="relative" style={{ width: size, height: size }}>
+      <svg className="w-full h-full -rotate-90" viewBox="0 0 128 128">
+        <circle cx="64" cy="64" r={r} fill="transparent" stroke="#292a2e" strokeWidth="9" />
+        <circle
+          cx="64"
+          cy="64"
+          r={r}
+          fill="transparent"
+          stroke="#00f4fe"
+          strokeWidth="9"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          style={{ filter: "drop-shadow(0 0 8px rgba(0,244,254,0.6))" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span
+          className="font-heading text-[38px] font-bold tracking-tight text-secondary-container leading-none"
+          style={{ textShadow: "0 0 14px rgba(0,244,254,0.35)" }}
+        >
+          {Math.round(clamped * progress)}
+        </span>
+        <span className="text-outline text-[10px] uppercase tracking-[0.2em] mt-1">Avg Index</span>
+      </div>
+    </div>
+  );
+}
+
+// Progress-bar fills for scam vectors (cyan → periwinkle → amber, cycling).
+const VECTOR_FILLS = [
+  { bg: "linear-gradient(90deg,#00dce5,#00f4fe)", glow: "rgba(0,244,254,0.5)", text: "text-secondary-container" },
+  { bg: "linear-gradient(90deg,#658aff,#b5c4ff)", glow: "rgba(181,196,255,0.5)", text: "text-primary" },
+  { bg: "linear-gradient(90deg,#e07314,#ffb787)", glow: "rgba(255,183,135,0.5)", text: "text-tertiary" },
+];
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
@@ -29,6 +124,8 @@ export default function DashboardPage() {
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const reduce = useReducedMotion();
 
   useEffect(() => {
     (async () => {
@@ -88,49 +185,90 @@ export default function DashboardPage() {
       accent: "border-l-4 border-l-error",
       valueClass: "text-error",
     },
-    { label: "High-Risk Entities", value: stats.high_risk_entities, icon: "hub", accent: "" },
+    { label: "High-Risk Entities", value: stats.high_risk_entities, icon: "hub", accent: "", valueClass: "text-tertiary" },
   ];
 
   const brief = alerts[0];
 
-  const SEVERITY_COLORS = ["#1F9D6B", "#5d5fef", "#E8A33D", "#D6303C", "#991B1B"];
+  const SEVERITY_COLORS = ["#1F9D6B", "#4da2ff", "#E8A33D", "#D6303C", "#991B1B"];
+
+  // ─── Motion variants (disabled under reduced-motion) ─────────────────────
+  const container: Variants = {
+    hidden: {},
+    show: { transition: { staggerChildren: reduce ? 0 : 0.08, delayChildren: reduce ? 0 : 0.04 } },
+  };
+  const fadeUp: Variants = reduce
+    ? { hidden: { opacity: 1 }, show: { opacity: 1 } }
+    : {
+        hidden: { opacity: 0, y: 18 },
+        show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
+      };
+  const rowFade: Variants = reduce
+    ? { hidden: { opacity: 1 }, show: { opacity: 1 } }
+    : {
+        hidden: { opacity: 0, y: 8 },
+        show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
+      };
+
+  // Border accent + icon per alert severity.
+  const alertAccent = (sev: string) => {
+    switch (sev.toLowerCase()) {
+      case "critical":
+        return "border-l-error";
+      case "high":
+        return "border-l-tertiary";
+      default:
+        return "border-l-secondary-container";
+    }
+  };
 
   return (
-    <div className="p-gutter space-y-gutter">
+    <motion.div
+      variants={container}
+      initial="hidden"
+      animate="show"
+      className="max-w-container-max mx-auto p-gutter space-y-gutter"
+    >
       {/* Title */}
-      <div className="flex flex-wrap items-end justify-between gap-stack-md">
+      <motion.div variants={fadeUp} className="flex flex-wrap items-end justify-between gap-stack-md">
         <div>
-          <h1 className="text-display-lg text-primary text-[36px]">National Threat Monitor</h1>
+          <h1 className="font-heading text-[38px] font-bold tracking-tight text-primary">
+            National Threat Monitor
+          </h1>
           <p className="font-body-md text-on-surface-variant mt-1 flex items-center gap-2">
-            <span className="w-2 h-2 bg-green-500 rounded-full glow-dot" />
-            Operational status: <span className="text-secondary font-bold">OPTIMAL</span>
+            <span className="w-2 h-2 bg-secondary-container rounded-full glow-dot pulse" />
+            Operational status: <span className="text-secondary-container font-bold">OPTIMAL</span>
           </p>
         </div>
-        <Link
-          href="/investigations"
-          className="h-10 px-stack-md bg-primary-container text-white rounded-lg flex items-center gap-2 font-label-md font-bold hover:brightness-110 transition-all"
-        >
+        <Link href="/investigations" className="btn-bloom h-10 px-stack-md text-on-primary rounded-lg flex items-center gap-2 font-label-md font-bold">
           <Icon name="manage_search" className="text-[18px]" />
           VIEW INVESTIGATIONS
         </Link>
-      </div>
+      </motion.div>
 
       {/* KPI grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-gutter">
-        {kpis.map((k) => (
-          <div key={k.label} className={`bento-card p-card-padding relative overflow-hidden group ${k.accent}`}>
+      <motion.div variants={container} className="grid grid-cols-2 lg:grid-cols-4 gap-gutter">
+        {kpis.map((k, i) => (
+          <motion.div
+            key={k.label}
+            variants={fadeUp}
+            className={`glass-panel p-6 relative overflow-hidden group transition-transform duration-300 hover:-translate-y-1 ${
+              i === 0 ? "cyan-glow" : ""
+            } ${k.accent}`}
+          >
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
               <Icon name={k.icon} className="text-[64px]" />
             </div>
             <div className="flex justify-between items-start mb-stack-md">
               <span className="font-label-md text-on-surface-variant">{k.label}</span>
             </div>
-            <span className={`text-[36px] font-bold leading-none ${k.valueClass ?? "text-on-surface"}`}>
-              {k.value}
-            </span>
-          </div>
+            <CountUp
+              value={k.value}
+              className={`font-heading text-5xl font-bold tracking-tight leading-none ${k.valueClass ?? "text-on-surface"}`}
+            />
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       {/* Main grid */}
       <div className="grid grid-cols-12 gap-gutter">
@@ -138,83 +276,98 @@ export default function DashboardPage() {
         <div className="col-span-12 lg:col-span-8 space-y-gutter">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter">
             {/* Trend chart */}
-            <div className="bento-card p-card-padding">
-              <div className="flex items-center justify-between mb-stack-md">
-                <span className="font-label-md text-on-surface">Complaint Trend</span>
-                <Icon name="show_chart" className="text-primary text-[18px]" />
+            <motion.div variants={fadeUp} className="glass-panel p-6">
+              <div className="flex items-start justify-between mb-stack-md">
+                <div>
+                  <p className="font-label-md text-[10px] uppercase tracking-[0.2em] text-outline">Live Signal</p>
+                  <span className="font-heading text-headline-sm text-on-surface">Complaint Trend</span>
+                </div>
+                <span className="font-label-md text-[10px] font-bold text-secondary-container bg-secondary-container/10 border border-secondary-container/20 px-2 py-1 rounded-full">
+                  24H CYCLE
+                </span>
               </div>
               <div className="h-[180px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={stats.daily_metrics} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#c1c1ff" stopOpacity={0.4} />
-                        <stop offset="100%" stopColor="#c1c1ff" stopOpacity={0} />
+                        <stop offset="0%" stopColor="#00f4fe" stopOpacity={0.45} />
+                        <stop offset="100%" stopColor="#00f4fe" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2a292f" vertical={false} />
-                    <XAxis dataKey="date" stroke="#908fa0" fontSize={11} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#908fa0" fontSize={11} tickLine={false} axisLine={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#292a2e" vertical={false} />
+                    <XAxis dataKey="date" stroke="#8d90a0" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#8d90a0" fontSize={11} tickLine={false} axisLine={false} />
                     <Tooltip
                       contentStyle={{
-                        background: "#1f1f25",
-                        border: "1px solid #464555",
-                        borderRadius: 8,
-                        color: "#e4e1e9",
+                        background: "#1e1f23",
+                        border: "1px solid #343538",
+                        borderRadius: 12,
+                        color: "#e3e2e7",
                         fontSize: 12,
                       }}
                     />
                     <Area
                       type="monotone"
                       dataKey="reports"
-                      stroke="#c1c1ff"
+                      stroke="#00f4fe"
                       strokeWidth={2}
                       fill="url(#trendFill)"
                     />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-            </div>
+            </motion.div>
 
             {/* Scam vector distribution */}
-            <div className="bento-card p-card-padding">
-              <div className="flex items-center justify-between mb-stack-md">
-                <span className="font-label-md text-on-surface">Scam Vector Distribution</span>
+            <motion.div variants={fadeUp} className="glass-panel p-6">
+              <div className="mb-stack-md">
+                <p className="font-label-md text-[10px] uppercase tracking-[0.2em] text-outline">Threat Mix</p>
+                <span className="font-heading text-headline-sm text-on-surface">Scam Vector Distribution</span>
               </div>
               <div className="space-y-stack-md">
                 {vectors.length === 0 && (
                   <p className="font-body-md text-on-surface-variant/60 text-[12px]">No recent data.</p>
                 )}
-                {vectors.map((v) => (
-                  <div key={v.name} className="space-y-1">
-                    <div className="flex justify-between font-label-md text-[11px]">
-                      <span className="truncate max-w-[70%]">{v.name}</span>
-                      <span className={v.text}>{v.pct}%</span>
+                {vectors.map((v, i) => {
+                  const fill = VECTOR_FILLS[i % VECTOR_FILLS.length];
+                  return (
+                    <div key={v.name} className="space-y-1.5">
+                      <div className="flex justify-between font-label-md text-[11px]">
+                        <span className="truncate max-w-[70%] text-on-surface">{v.name}</span>
+                        <span className={fill.text}>{v.pct}%</span>
+                      </div>
+                      <div className="w-full bg-white/5 h-2.5 rounded-full overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full"
+                          style={{ background: fill.bg, boxShadow: `0 0 10px ${fill.glow}` }}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${v.pct}%` }}
+                          transition={{ duration: reduce ? 0 : 0.9, ease: [0.16, 1, 0.3, 1] }}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
-                      <div className={`${v.color} h-full glow-dot`} style={{ width: `${v.pct}%` }} />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            </div>
+            </motion.div>
           </div>
 
           {/* Incident table */}
-          <div className="bento-card overflow-hidden">
-            <div className="p-card-padding border-b border-outline-variant flex items-center justify-between">
+          <motion.div variants={fadeUp} className="glass-panel overflow-hidden">
+            <div className="p-6 border-b border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="w-1.5 h-6 bg-primary rounded-full" />
-                <h2 className="font-headline-sm text-on-surface">Recent Incidents</h2>
+                <span className="w-1.5 h-6 bg-secondary-container rounded-full" />
+                <h2 className="font-heading text-headline-sm text-on-surface">Recent Incidents</h2>
               </div>
-              <Link href="/reports" className="font-label-md text-[11px] text-secondary font-bold uppercase">
+              <Link href="/reports" className="font-label-md text-[11px] text-secondary-container font-bold uppercase tracking-wider hover:text-primary transition-colors">
                 View All
               </Link>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-surface-container-low/30 border-b border-outline-variant">
+                  <tr className="border-b border-white/5">
                     <th className="p-4 font-label-md text-[11px] text-on-surface-variant">ID</th>
                     <th className="p-4 font-label-md text-[11px] text-on-surface-variant">SUBJECT</th>
                     <th className="p-4 font-label-md text-[11px] text-on-surface-variant">THREAT</th>
@@ -224,28 +377,32 @@ export default function DashboardPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="font-body-md text-on-surface">
+                <motion.tbody variants={container} className="font-body-md text-on-surface">
                   {reports.map((r) => {
                     const sev = r.threat_scores?.[0]?.severity_band;
                     return (
-                      <tr
+                      <motion.tr
                         key={r.id}
-                        className="border-b border-outline-variant/30 hover:bg-surface-container-high transition-colors"
+                        variants={rowFade}
+                        className="border-b border-white/5 hover:bg-white/[0.03] transition-colors"
                       >
-                        <td className="p-4 font-label-md text-primary">{shortId(r.id)}</td>
+                        <td className="p-4 font-heading font-semibold text-secondary-container">{shortId(r.id)}</td>
                         <td className="p-4 font-semibold max-w-[240px] truncate">{reportTitle(r)}</td>
                         <td className="p-4">
-                          <span
-                            className={`px-2 py-0.5 rounded font-bold text-[10px] uppercase ${severityBadge(sev)}`}
-                          >
+                          <span className={`px-2 py-0.5 rounded font-bold text-[10px] uppercase ${severityBadge(sev)}`}>
                             {sev ?? "—"}
                           </span>
                         </td>
-                        <td className={`p-4 font-bold text-sm ${severityText(sev)}`}>{r.status}</td>
-                        <td className="p-4 text-on-surface-variant text-sm hidden md:table-cell">
+                        <td className="p-4">
+                          <span className={`inline-flex items-center gap-2 font-bold text-sm ${severityText(sev)}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full glow-dot pulse ${sev === "critical" ? "bg-error" : sev === "high" ? "bg-tertiary" : "bg-secondary-container"}`} />
+                            {r.status}
+                          </span>
+                        </td>
+                        <td className="p-4 text-on-surface-variant text-sm tabular-nums hidden md:table-cell">
                           {formatDateTime(r.created_at)}
                         </td>
-                      </tr>
+                      </motion.tr>
                     );
                   })}
                   {reports.length === 0 && (
@@ -255,24 +412,24 @@ export default function DashboardPage() {
                       </td>
                     </tr>
                   )}
-                </tbody>
+                </motion.tbody>
               </table>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Right */}
         <div className="col-span-12 lg:col-span-4 space-y-gutter">
           {/* AI Brief */}
-          <div className="bento-card p-card-padding relative overflow-hidden">
-            <div className="absolute -right-4 -top-4 w-32 h-32 bg-primary/5 rounded-full blur-3xl" />
+          <motion.div variants={fadeUp} className="glass-panel p-6 relative overflow-hidden">
+            <div className="absolute -right-4 -top-4 w-32 h-32 bg-secondary-container/5 rounded-full blur-3xl" />
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-stack-md">
-                <div className="w-10 h-10 rounded-lg bg-primary-container flex items-center justify-center">
+                <div className="w-10 h-10 rounded-lg bg-primary-container/20 border border-primary/20 flex items-center justify-center">
                   <Icon name="psychology" className="text-primary text-[20px]" />
                 </div>
                 <div>
-                  <h2 className="font-label-md text-primary uppercase font-bold tracking-wider">
+                  <h2 className="font-heading font-bold text-primary uppercase tracking-wider text-[13px]">
                     Neural Analysis
                   </h2>
                   <p className="text-[10px] text-on-surface-variant">Daily Intelligence Brief</p>
@@ -282,12 +439,12 @@ export default function DashboardPage() {
                 <div className="space-y-stack-md">
                   <p className="font-body-md text-on-surface leading-relaxed">
                     Monitoring detects a{" "}
-                    <span className="text-primary font-bold">
+                    <span className="text-secondary-container font-bold">
                       {brief.velocity_metric.trend_percentage}% surge
                     </span>{" "}
                     in {brief.title.replace("Velocity Surge: ", "")} over the last fortnight.
                   </p>
-                  <div className="bg-surface-container-high/50 p-4 rounded-lg border-l-4 border-primary">
+                  <div className="bg-white/[0.03] p-4 rounded-lg border-l-4 border-secondary-container">
                     <p className="text-sm italic text-on-surface-variant">{brief.description}</p>
                   </div>
                 </div>
@@ -295,17 +452,18 @@ export default function DashboardPage() {
                 <p className="font-body-md text-on-surface-variant">No predictive signals today.</p>
               )}
             </div>
-          </div>
+          </motion.div>
 
           {/* Priority alerts */}
-          <div className="bento-card flex flex-col max-h-[460px]">
-            <div className="p-card-padding border-b border-outline-variant flex items-center justify-between">
+          <motion.div variants={fadeUp} className="glass-panel flex flex-col max-h-[460px] overflow-hidden">
+            <div className="p-6 border-b border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-2 text-error">
                 <Icon name="warning" className="text-[20px]" fill />
-                <h2 className="font-label-md font-bold uppercase tracking-widest">Priority Alerts</h2>
+                <h2 className="font-heading font-bold uppercase tracking-widest text-[13px]">Priority Alerts</h2>
               </div>
-              <span className="bg-error text-on-error px-2 py-0.5 rounded-full text-[10px] font-black">
-                ACTIVE
+              <span className="flex items-center gap-1.5 bg-error/15 text-error px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-error glow-dot pulse" />
+                Live
               </span>
             </div>
             <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -317,13 +475,14 @@ export default function DashboardPage() {
                   <Link
                     key={i}
                     href={`/reports?category=${encodeURIComponent(category)}`}
-                    className="block p-4 border-b border-outline-variant/30 hover:bg-surface-container-high/50 transition-colors group"
+                    className={`block p-4 border-b border-white/5 border-l-4 ${alertAccent(a.severity)} hover:bg-white/[0.03] transition-colors group`}
                   >
                     <div className="flex justify-between mb-2">
-                      <span className={`font-label-md text-[10px] uppercase font-bold ${severityText(a.severity)}`}>
+                      <span className={`flex items-center gap-1.5 font-label-md text-[10px] uppercase font-bold ${severityText(a.severity)}`}>
+                        <Icon name="warning" className="text-[14px]" fill />
                         {a.severity}
                       </span>
-                      <span className="font-label-md text-[10px] text-outline">
+                      <span className="font-label-md text-[10px] text-outline tabular-nums">
                         {a.velocity_metric.count_14d} / 14d
                       </span>
                     </div>
@@ -331,7 +490,7 @@ export default function DashboardPage() {
                       {a.title}
                       <Icon
                         name="arrow_forward"
-                        className="text-[14px] text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="text-[14px] text-secondary-container opacity-0 group-hover:opacity-100 transition-opacity"
                       />
                     </h3>
                     <p className="text-[12px] text-on-surface-variant mt-1 leading-snug line-clamp-3">
@@ -344,87 +503,77 @@ export default function DashboardPage() {
                 <p className="p-4 font-body-md text-on-surface-variant">No active alerts.</p>
               )}
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
 
       {/* Analytics Grid - Geo, Score Distribution, Timeline */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
-        {/* Geo Bar Chart */}
-        <section className="bento-card p-card-padding">
-          <h3 className="font-headline-sm text-on-surface mb-stack-md">City Distribution</h3>
+      <motion.div variants={container} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
+        {/* City Distribution (dot-row list) */}
+        <motion.section variants={fadeUp} className="glass-panel p-6">
+          <h3 className="font-heading text-headline-sm text-on-surface mb-stack-md">City Distribution</h3>
           {geoData.length === 0 ? (
             <p className="font-body-md text-on-surface-variant/60 text-[12px]">No data.</p>
           ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={geoData}>
-                <XAxis dataKey="city" tick={{ fill: "#9ca3af", fontSize: 10 }} />
-                <YAxis tick={{ fill: "#9ca3af", fontSize: 10 }} />
-                <Tooltip
-                  contentStyle={{
-                    background: "#1f1f25",
-                    border: "1px solid #464555",
-                    borderRadius: 8,
-                    color: "#e4e1e9",
-                    fontSize: 12,
-                  }}
-                />
-                <Bar dataKey="count" fill="#5d5fef" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="space-y-stack-sm">
+              {geoData.slice(0, 8).map((g, i) => (
+                <div
+                  key={g.city}
+                  className="flex items-center gap-3 bg-white/[0.03] rounded-2xl border border-white/5 px-4 py-3"
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full glow-dot shrink-0"
+                    style={{ backgroundColor: SEVERITY_COLORS[i % SEVERITY_COLORS.length] }}
+                  />
+                  <span className="font-body-md text-on-surface truncate flex-1">{g.city}</span>
+                  <span className="font-heading font-bold text-secondary-container tabular-nums">{g.count}</span>
+                </div>
+              ))}
+            </div>
           )}
-        </section>
+        </motion.section>
 
-        {/* Score Distribution Histogram */}
-        <section className="bento-card p-card-padding">
-          <h3 className="font-headline-sm text-on-surface mb-stack-md">Threat Score Distribution</h3>
-          {scoreDistData.length === 0 ? (
-            <p className="font-body-md text-on-surface-variant/60 text-[12px]">No data.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={scoreDistData}>
-                <XAxis dataKey="range" tick={{ fill: "#9ca3af", fontSize: 10 }} />
-                <YAxis tick={{ fill: "#9ca3af", fontSize: 10 }} />
-                <Tooltip
-                  contentStyle={{
-                    background: "#1f1f25",
-                    border: "1px solid #464555",
-                    borderRadius: 8,
-                    color: "#e4e1e9",
-                    fontSize: 12,
-                  }}
-                />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {scoreDistData.map((_, i) => (
-                    <Cell key={i} fill={SEVERITY_COLORS[i % SEVERITY_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+        {/* Threat Score Distribution (ring) */}
+        <motion.section variants={fadeUp} className="glass-panel p-6 flex flex-col items-center">
+          <h3 className="font-heading text-headline-sm text-on-surface mb-stack-md self-start">Threat Score Distribution</h3>
+          <IndexRing value={stats.avg_threat_score} />
+          {scoreDistData.length > 0 && (
+            <div className="mt-stack-md w-full space-y-1.5">
+              {scoreDistData.map((d, i) => (
+                <div key={d.range} className="flex items-center gap-2 text-[11px]">
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: SEVERITY_COLORS[i % SEVERITY_COLORS.length] }}
+                  />
+                  <span className="text-on-surface-variant flex-1 tabular-nums">{d.range}</span>
+                  <span className="text-on-surface font-bold tabular-nums">{d.count}</span>
+                </div>
+              ))}
+            </div>
           )}
-        </section>
+        </motion.section>
 
         {/* Threat Timeline */}
-        <section className="bento-card p-card-padding max-h-96 overflow-y-auto custom-scrollbar">
-          <h3 className="font-headline-sm text-on-surface mb-stack-md">Threat Timeline</h3>
+        <motion.section variants={fadeUp} className="glass-panel p-6 max-h-96 overflow-y-auto custom-scrollbar">
+          <h3 className="font-heading text-headline-sm text-on-surface mb-stack-md">Threat Timeline</h3>
           {timeline.length === 0 ? (
             <p className="font-body-md text-on-surface-variant/60 text-[12px]">No data.</p>
           ) : (
             <div className="space-y-stack-sm">
               {timeline.slice(0, 20).map((evt) => (
                 <div key={evt.id} className="flex items-center gap-stack-sm">
-                  <div className={`w-2 h-2 rounded-full ${evt.severity === "critical" ? "bg-error" : evt.severity === "high" ? "bg-warning" : "bg-primary"}`} />
-                  <span className="text-body-sm text-on-surface-variant">{evt.created_at ? new Date(evt.created_at).toLocaleString() : "N/A"}</span>
+                  <div className={`w-2 h-2 rounded-full glow-dot ${evt.severity === "critical" ? "bg-error" : evt.severity === "high" ? "bg-tertiary" : "bg-secondary-container"}`} />
+                  <span className="text-body-sm text-on-surface-variant tabular-nums">{evt.created_at ? new Date(evt.created_at).toLocaleString() : "N/A"}</span>
                   <span className="text-body-sm text-on-surface">{evt.scam_category || "Report"}</span>
-                  <span className={`text-[10px] uppercase font-bold px-1 rounded ${evt.severity === "critical" ? "text-error bg-error/10" : evt.severity === "high" ? "text-warning bg-warning/10" : "text-primary bg-primary/10"}`}>
+                  <span className={`text-[10px] uppercase font-bold px-1 rounded ${evt.severity === "critical" ? "text-error bg-error/10" : evt.severity === "high" ? "text-tertiary bg-tertiary/10" : "text-secondary-container bg-secondary-container/10"}`}>
                     {evt.severity || "pending"}
                   </span>
                 </div>
               ))}
             </div>
           )}
-        </section>
-      </div>
-    </div>
+        </motion.section>
+      </motion.div>
+    </motion.div>
   );
 }

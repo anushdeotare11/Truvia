@@ -2,18 +2,39 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { motion, useReducedMotion } from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { PageLoader } from "@/components/AppShell";
 import { api, ApiError } from "@/lib/api";
 import type { Report } from "@/lib/types";
-import { severityBadge, statusBadge, reportTitle, formatDate, shortId } from "@/lib/format";
+import {
+  statusBadge,
+  reportTitle,
+  formatDateTime,
+  shortId,
+  severityText,
+  severityStroke,
+} from "@/lib/format";
 
 const PAGE_SIZE = 10;
 const STATUSES = ["", "submitted", "processing", "scored", "escalated", "dismissed", "failed"];
 const SOURCE_TYPES = ["", "text", "screenshot", "audio"];
 
+// Material icon per report source type.
+function sourceIcon(type?: string): string {
+  switch (type) {
+    case "screenshot":
+      return "screenshot";
+    case "audio":
+      return "audio_file";
+    default:
+      return "description";
+  }
+}
+
 function ReportsInner() {
   const searchParams = useSearchParams();
+  const reduceMotion = useReducedMotion();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,137 +98,166 @@ function ReportsInner() {
   }
 
   return (
-    <div className="p-gutter flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+    <div className="relative p-gutter flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-background">
+      {/* Ambient void backdrop */}
+      <div className="pointer-events-none absolute inset-0 -z-10 opacity-60 grid-overlay" />
+
+      {/* Header */}
       <section className="flex flex-wrap items-end justify-between gap-stack-md mb-stack-md">
-        <div>
-          <h1 className="font-headline-md text-on-surface">Intelligence Reports</h1>
+        <div className="space-y-1.5">
+          <p className="text-label-sm uppercase tracking-widest text-secondary-container/80">
+            Registry / Intelligence
+          </p>
+          <h1 className="font-heading text-headline-lg md:text-display-lg text-on-surface leading-none">
+            Reports Registry
+          </h1>
           <p className="font-body-md text-on-surface-variant">
             Archive of investigation documents and citizen threat assessments.
           </p>
         </div>
-        <button
-          onClick={exportCsv}
-          className="h-10 px-stack-md bg-primary-container text-white rounded-lg flex items-center gap-2 font-label-md font-bold uppercase hover:brightness-110 transition-all"
-          title="Export current filtered view as CSV"
-        >
-          <Icon name="download" className="text-[18px]" />
-          Export CSV
-        </button>
+        <div className="flex items-center gap-stack-sm">
+          <button
+            onClick={exportCsv}
+            className="h-10 px-stack-md rounded-xl flex items-center gap-2 text-label-md font-medium uppercase text-on-surface-variant border border-white/10 hover:bg-white/5 hover:text-on-surface transition-all"
+            title="Export current filtered view as CSV"
+          >
+            <Icon name="download" className="text-[18px]" />
+            Export CSV
+          </button>
+          <button
+            onClick={load}
+            className="btn-bloom h-10 px-stack-md rounded-xl flex items-center gap-2 text-label-md font-bold uppercase text-on-primary"
+            title="Refresh the current view"
+          >
+            <Icon name="sync" className="text-[18px]" />
+            Sync Data
+          </button>
+        </div>
       </section>
 
-      {/* Filters */}
+      {/* Search + status filter pills */}
       <section className="mb-stack-md">
-        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-md flex flex-wrap items-end gap-gutter">
-          <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-            <label className="font-label-md text-on-surface-variant/70 uppercase">Search</label>
-            <div className="relative">
+        <div className="glass-panel rounded-3xl p-stack-md flex flex-col gap-stack-md">
+          <div className="flex flex-col md:flex-row gap-stack-md md:items-center">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[200px]">
+              <Icon
+                name="search"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[20px] text-on-surface-variant"
+              />
               <input
-                className="bg-surface-container-high border border-outline-variant/30 text-on-surface rounded-lg text-body-md focus:ring-1 focus:ring-primary w-full h-10 pl-9 pr-3 outline-none"
-                placeholder="Search message text..."
+                className="input-glass w-full h-11 rounded-xl pl-11 pr-4 text-body-md text-on-surface placeholder:text-outline/50 outline-none"
+                placeholder="Search by message text, keywords…"
                 value={search}
                 onChange={(e) => {
                   setPage(0);
                   setSearch(e.target.value);
                 }}
               />
+            </div>
+            {/* Source type glass select */}
+            <div className="relative min-w-[180px]">
+              <select
+                value={sourceType}
+                onChange={(e) => {
+                  setPage(0);
+                  setSourceType(e.target.value);
+                }}
+                className="input-glass w-full h-11 rounded-xl pl-4 pr-9 text-body-md text-on-surface capitalize appearance-none outline-none cursor-pointer"
+              >
+                {SOURCE_TYPES.map((s) => (
+                  <option key={s} value={s} className="bg-surface-container text-on-surface">
+                    {s === "" ? "All Types" : s}
+                  </option>
+                ))}
+              </select>
               <Icon
-                name="search"
-                className="absolute left-2.5 top-2.5 text-[18px] text-on-surface-variant"
+                name="expand_more"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[20px] text-on-surface-variant pointer-events-none"
               />
             </div>
           </div>
-          <div className="flex flex-col gap-1.5 min-w-[160px]">
-            <label className="font-label-md text-on-surface-variant/70 uppercase">Status</label>
-            <select
-              value={status}
-              onChange={(e) => {
-                setPage(0);
-                setStatus(e.target.value);
-              }}
-              className="bg-surface-container-high border-outline-variant/30 text-on-surface rounded-lg text-body-md focus:ring-1 focus:ring-primary h-10 px-stack-md capitalize"
-            >
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s === "" ? "All Statuses" : s}
-                </option>
-              ))}
-            </select>
+
+          {/* Status pills */}
+          <div className="flex flex-wrap items-center gap-2">
+            {STATUSES.map((s) => {
+              const active = status === s;
+              return (
+                <button
+                  key={s || "all"}
+                  onClick={() => {
+                    setPage(0);
+                    setStatus(s);
+                  }}
+                  className={`rounded-full px-4 py-1.5 text-label-md capitalize transition-all ${
+                    active
+                      ? "bg-primary/15 text-primary border border-primary/30"
+                      : "bg-white/5 text-on-surface-variant border border-white/10 hover:text-on-surface"
+                  }`}
+                >
+                  {s === "" ? "All Status" : s}
+                </button>
+              );
+            })}
           </div>
-          <div className="flex flex-col gap-1.5 min-w-[160px]">
-            <label className="font-label-md text-on-surface-variant/70 uppercase">Source Type</label>
-            <select
-              value={sourceType}
-              onChange={(e) => {
-                setPage(0);
-                setSourceType(e.target.value);
-              }}
-              className="bg-surface-container-high border-outline-variant/30 text-on-surface rounded-lg text-body-md focus:ring-1 focus:ring-primary h-10 px-stack-md capitalize"
-            >
-              {SOURCE_TYPES.map((s) => (
-                <option key={s} value={s}>
-                  {s === "" ? "All Types" : s}
-                </option>
-              ))}
-            </select>
-          </div>
+
+          {/* Contextual filter chips (category / city) */}
+          {(category || city) && (
+            <div className="flex flex-wrap items-center gap-stack-sm pt-1">
+              {category && (
+                <span className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full bg-primary/15 text-primary text-label-md capitalize border border-primary/30">
+                  {category}
+                  <button
+                    onClick={() => {
+                      setPage(0);
+                      setCategory("");
+                    }}
+                    className="p-0.5 rounded-full hover:bg-primary/20 transition-colors"
+                    title="Clear category filter"
+                    aria-label="Clear category filter"
+                  >
+                    <Icon name="close" className="text-[14px]" />
+                  </button>
+                </span>
+              )}
+              {city && (
+                <span className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full bg-secondary-container/15 text-secondary-container text-label-md border border-secondary-container/30">
+                  {city}
+                  <button
+                    onClick={() => {
+                      setPage(0);
+                      setCity("");
+                    }}
+                    className="p-0.5 rounded-full hover:bg-secondary-container/20 transition-colors"
+                    title="Clear city filter"
+                    aria-label="Clear city filter"
+                  >
+                    <Icon name="close" className="text-[14px]" />
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
         </div>
-        {category && (
-          <div className="mt-stack-sm flex items-center gap-stack-sm">
-            <span className="font-label-md text-on-surface-variant/70 uppercase text-[11px]">Category</span>
-            <span className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full bg-primary/15 text-primary text-[12px] font-bold capitalize">
-              {category}
-              <button
-                onClick={() => {
-                  setPage(0);
-                  setCategory("");
-                }}
-                className="p-0.5 rounded-full hover:bg-primary/20 transition-colors"
-                title="Clear category filter"
-                aria-label="Clear category filter"
-              >
-                <Icon name="close" className="text-[14px]" />
-              </button>
-            </span>
-          </div>
-        )}
-        {city && (
-          <div className="mt-stack-sm flex items-center gap-stack-sm">
-            <span className="font-label-md text-on-surface-variant/70 uppercase text-[11px]">City</span>
-            <span className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full bg-primary/15 text-primary text-[12px] font-bold">
-              {city}
-              <button
-                onClick={() => {
-                  setPage(0);
-                  setCity("");
-                }}
-                className="p-0.5 rounded-full hover:bg-primary/20 transition-colors"
-                title="Clear city filter"
-                aria-label="Clear city filter"
-              >
-                <Icon name="close" className="text-[14px]" />
-              </button>
-            </span>
-          </div>
-        )}
       </section>
 
       {/* Table */}
       <section className="flex-1 overflow-hidden">
-        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl h-full flex flex-col overflow-hidden">
+        <div className="glass-panel rounded-3xl h-full flex flex-col overflow-hidden">
           <div className="overflow-auto custom-scrollbar flex-1">
             {loading ? (
               <PageLoader />
             ) : error ? (
               <div className="p-6 text-error font-body-md">{error}</div>
             ) : (
-              <table className="w-full border-collapse">
-                <thead className="sticky top-0 bg-surface-container-high z-10">
-                  <tr className="text-left border-b border-outline-variant">
-                    {["ID", "Title", "Type", "Status", "Date", "Threat", "Actions"].map((h) => (
+              <table className="w-full border-collapse text-left">
+                <thead className="sticky top-0 z-10 bg-surface-container/80 backdrop-blur-xl">
+                  <tr className="border-b border-white/5">
+                    {["ID", "Incident Title", "Type", "Status", "Date", "Threat", "Action"].map((h) => (
                       <th
                         key={h}
-                        className={`px-stack-md py-4 font-label-md text-on-surface-variant/60 uppercase whitespace-nowrap ${
-                          h === "Actions" ? "text-right" : ""
+                        className={`px-stack-md py-4 text-label-sm uppercase tracking-widest text-on-surface-variant whitespace-nowrap ${
+                          h === "Action" ? "text-right" : ""
                         }`}
                       >
                         {h}
@@ -215,49 +265,86 @@ function ReportsInner() {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-outline-variant/30">
-                  {reports.map((r) => {
+                <tbody>
+                  {reports.map((r, i) => {
                     const sev = r.threat_scores?.[0]?.severity_band;
+                    const subtitle = r.cleaned_text?.trim().replace(/\s+/g, " ");
                     return (
-                      <tr key={r.id} className="hover:bg-surface-container-high/40 transition-colors">
-                        <td className="px-stack-md py-4 font-mono text-body-sm text-primary">{shortId(r.id)}</td>
-                        <td className="px-stack-md py-4 font-semibold text-body-md text-on-surface max-w-[280px] truncate">
-                          {reportTitle(r)}
+                      <motion.tr
+                        key={r.id}
+                        initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={
+                          reduceMotion
+                            ? { duration: 0 }
+                            : { duration: 0.4, delay: Math.min(i * 0.04, 0.4), ease: [0.16, 1, 0.3, 1] }
+                        }
+                        className="border-b border-white/5 hover:bg-white/[0.03] transition-colors"
+                      >
+                        {/* ID */}
+                        <td className="px-stack-md py-4 align-top">
+                          <span className="font-heading text-body-sm text-secondary-container">
+                            {shortId(r.id)}
+                          </span>
                         </td>
-                        <td className="px-stack-md py-4 text-body-sm text-on-surface-variant capitalize">
-                          {r.source_type}
+                        {/* Two-line title */}
+                        <td className="px-stack-md py-4 align-top max-w-[320px]">
+                          <div className="flex flex-col">
+                            <span className="text-body-md font-medium text-on-surface truncate">
+                              {reportTitle(r)}
+                            </span>
+                            {subtitle && (
+                              <span className="text-label-md text-outline truncate">{subtitle}</span>
+                            )}
+                          </div>
                         </td>
-                        <td className="px-stack-md py-4">
+                        {/* Source type + icon */}
+                        <td className="px-stack-md py-4 align-top">
+                          <span className="inline-flex items-center gap-2 text-on-surface-variant">
+                            <Icon name={sourceIcon(r.source_type)} className="text-[20px]" />
+                            <span className="text-label-md uppercase tracking-tight">{r.source_type}</span>
+                          </span>
+                        </td>
+                        {/* Status chip */}
+                        <td className="px-stack-md py-4 align-top">
                           <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${statusBadge(
+                            className={`inline-flex items-center px-3 py-1 rounded-lg text-label-sm uppercase ${statusBadge(
                               r.status
                             )}`}
                           >
                             {r.status}
                           </span>
                         </td>
-                        <td className="px-stack-md py-4 text-body-sm text-on-surface-variant">
-                          {formatDate(r.created_at)}
+                        {/* Date */}
+                        <td className="px-stack-md py-4 align-top text-label-md text-on-surface-variant tabular-nums whitespace-nowrap">
+                          {formatDateTime(r.created_at)}
                         </td>
-                        <td className="px-stack-md py-4">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${severityBadge(
-                              sev
-                            )}`}
-                          >
-                            {sev ?? "—"}
+                        {/* Threat dot + label */}
+                        <td className="px-stack-md py-4 align-top">
+                          <span className="inline-flex items-center gap-2">
+                            <span
+                              className="w-2 h-2 rounded-full"
+                              style={{
+                                backgroundColor: severityStroke(sev),
+                                boxShadow: `0 0 8px ${severityStroke(sev)}`,
+                              }}
+                            />
+                            <span className={`text-label-md font-medium capitalize ${severityText(sev)}`}>
+                              {sev ?? "—"}
+                            </span>
                           </span>
                         </td>
-                        <td className="px-stack-md py-4 text-right whitespace-nowrap">
+                        {/* Action: PDF download */}
+                        <td className="px-stack-md py-4 align-top text-right whitespace-nowrap">
                           <button
                             onClick={() => downloadPdf(r.id)}
-                            className="p-2 hover:bg-surface-container-highest rounded-lg text-on-surface-variant hover:text-primary transition-colors"
+                            className="p-2 rounded-lg text-on-surface-variant border border-white/10 hover:bg-white/10 hover:text-primary transition-colors"
                             title="Export PDF"
                           >
                             <Icon name="picture_as_pdf" className="text-[18px]" />
                           </button>
                         </td>
-                      </tr>
+                      </motion.tr>
                     );
                   })}
                   {reports.length === 0 && (
@@ -273,22 +360,24 @@ function ReportsInner() {
           </div>
 
           {/* Pagination */}
-          <div className="px-gutter py-4 border-t border-outline-variant flex items-center justify-between">
-            <span className="font-body-md text-on-surface-variant text-[13px]">
-              Page <span className="text-on-surface font-bold">{page + 1}</span>
+          <div className="px-gutter py-4 border-t border-white/5 bg-surface-container-low/40 flex items-center justify-between">
+            <span className="text-label-md text-on-surface-variant">
+              Page <span className="text-on-surface font-bold tabular-nums">{page + 1}</span>
             </span>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
                 disabled={page === 0}
-                className="p-2 rounded-lg hover:bg-surface-container-highest transition-colors disabled:opacity-20 text-on-surface"
+                className="p-2 rounded-lg border border-white/10 text-on-surface hover:bg-white/10 transition-colors disabled:opacity-20 disabled:hover:bg-transparent"
+                aria-label="Previous page"
               >
                 <Icon name="chevron_left" />
               </button>
               <button
                 onClick={() => setPage((p) => p + 1)}
                 disabled={!hasMore}
-                className="p-2 rounded-lg hover:bg-surface-container-highest transition-colors disabled:opacity-20 text-on-surface"
+                className="p-2 rounded-lg border border-white/10 text-on-surface hover:bg-white/10 transition-colors disabled:opacity-20 disabled:hover:bg-transparent"
+                aria-label="Next page"
               >
                 <Icon name="chevron_right" />
               </button>

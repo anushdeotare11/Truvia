@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TRUVIA | Reports Registry</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-tertiary": "#512400",
+                    "on-surface-variant": "#c3c5d7",
+                    "on-surface": "#e3e2e7",
+                    "on-tertiary-fixed-variant": "#723600",
+                    "on-primary-fixed": "#00164e",
+                    "error-container": "#93000a",
+                    "surface-dim": "#121317",
+                    "inverse-on-surface": "#2f3034",
+                    "outline": "#8d90a0",
+                    "error": "#ffb4ab",
+                    "background": "#06070a",
+                    "surface-container-highest": "#343538",
+                    "secondary-fixed": "#63f7ff",
+                    "on-error": "#690005",
+                    "surface-container": "#1e1f23",
+                    "surface": "#121317",
+                    "on-primary-fixed-variant": "#003bae",
+                    "on-background": "#e3e2e7",
+                    "on-error-container": "#ffdad6",
+                    "surface-bright": "#38393d",
+                    "on-secondary-fixed": "#002021",
+                    "tertiary-fixed": "#ffdcc7",
+                    "primary": "#b5c4ff",
+                    "surface-container-low": "#1a1b1f",
+                    "on-primary-container": "#00226d",
+                    "inverse-surface": "#e3e2e7",
+                    "surface-tint": "#b5c4ff",
+                    "secondary": "#e6feff",
+                    "tertiary": "#ffb787",
+                    "on-secondary-container": "#006c71",
+                    "on-secondary-fixed-variant": "#004f53",
+                    "inverse-primary": "#1c53d7",
+                    "secondary-fixed-dim": "#00dce5",
+                    "on-tertiary-container": "#461f00",
+                    "surface-container-high": "#292a2e",
+                    "tertiary-fixed-dim": "#ffb787",
+                    "secondary-container": "#00f4fe",
+                    "surface-container-lowest": "#0d0e12",
+                    "on-tertiary-fixed": "#311300",
+                    "tertiary-container": "#e07314",
+                    "primary-fixed-dim": "#b5c4ff",
+                    "primary-container": "#658aff",
+                    "on-secondary": "#003739",
+                    "primary-fixed": "#dce1ff",
+                    "on-primary": "#00287c",
+                    "surface-variant": "#343538",
+                    "outline-variant": "#434654"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter": "24px",
+                    "margin-desktop": "40px",
+                    "margin-mobile": "16px",
+                    "container-max": "1440px",
+                    "unit": "8px"
+            },
+            "fontFamily": {
+                    "label-md": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "display-xl": ["Outfit"],
+                    "headline-md": ["Outfit"],
+                    "body-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-lg": ["Outfit"],
+                    "body-sm": ["Inter"]
+            },
+            "fontSize": {
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "label-sm": ["10px", {"lineHeight": "12px", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                    "display-xl": ["64px", {"lineHeight": "72px", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #06070a;
+            color: #e3e2e7;
+            overflow-x: hidden;
+        }
+        /* Obsidian Glass Styling */
+        .glass-panel {
+            background: rgba(18, 19, 23, 0.6);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .obsidian-card {
+            background: linear-gradient(145deg, rgba(30, 31, 35, 0.4), rgba(13, 14, 18, 0.6));
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .glow-blue { box-shadow: 0 0 30px rgba(79, 123, 255, 0.1); }
+        .glow-red { box-shadow: 0 0 30px rgba(255, 180, 171, 0.1); }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .animate-pulse-slow { animation: pulse-slow 3s infinite ease-in-out; }
+
+        .drawer-active { transform: translateX(0); }
+        .drawer-inactive { transform: translateX(100%); }
+
+        .filter-btn-active {
+            background: rgba(181, 196, 255, 0.15);
+            color: #b5c4ff;
+            border: 1px solid rgba(181, 196, 255, 0.3);
+        }
+    </style>
+</head>
+<body class="font-body-md selection:bg-primary selection:text-on-primary">
+<!-- TopNavBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface/80 backdrop-blur-xl border-b border-white/10 shadow-lg shadow-primary/5">
+<div class="flex items-center gap-8">
+<span class="text-headline-md font-headline-md font-bold tracking-tighter text-primary dark:text-primary">TRUVIA</span>
+<nav class="hidden md:flex gap-6">
+<a class="text-label-md font-label-md text-on-surface-variant hover:text-on-surface transition-colors hover:bg-white/5 px-2 py-1" href="#">Dashboard</a>
+<a class="text-label-md font-label-md text-primary border-b-2 border-primary pb-1" href="#">Reports</a>
+<a class="text-label-md font-label-md text-on-surface-variant hover:text-on-surface transition-colors hover:bg-white/5 px-2 py-1" href="#">Alerts</a>
+<a class="text-label-md font-label-md text-on-surface-variant hover:text-on-surface transition-colors hover:bg-white/5 px-2 py-1" href="#">Safety Hub</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="hidden lg:flex items-center gap-2 bg-error-container text-on-error-container px-4 py-2 rounded-lg text-label-md font-label-md hover:scale-95 transition-all duration-200">
+<span class="material-symbols-outlined text-[18px]">emergency</span> Emergency Call
+        </button>
+<div class="flex gap-2">
+<button class="p-2 rounded-full hover:bg-white/5 text-on-surface-variant transition-all duration-300">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 rounded-full hover:bg-white/5 text-on-surface-variant transition-all duration-300">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container text-label-sm font-label-sm ml-2">SM</div>
+</div>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full z-40 flex flex-col pt-20 pb-8 bg-surface-container-lowest/90 backdrop-blur-2xl border-r border-white/10 w-64 shadow-[20px_0_40px_rgba(0,0,0,0.5)]">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl glass-panel flex items-center justify-center border-primary/20">
+<span class="material-symbols-outlined text-primary">shield</span>
+</div>
+<div>
+<h3 class="text-label-md font-label-md font-bold text-on-surface">Unit 734</h3>
+<p class="text-label-sm font-label-sm text-on-surface-variant">Sgt. Miller</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 text-on-surface-variant hover:text-on-surface hover:bg-white/5" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-label-md font-label-md">Command</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 text-on-surface-variant hover:text-on-surface hover:bg-white/5" href="#">
+<span class="material-symbols-outlined">security</span>
+<span class="text-label-md font-label-md">Intelligence</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 text-on-surface-variant hover:text-on-surface hover:bg-white/5" href="#">
+<span class="material-symbols-outlined">videocam</span>
+<span class="text-label-md font-label-md">Surveillance</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 bg-primary-container/20 text-primary border-l-4 border-primary shadow-[0_0_15px_rgba(79,123,255,0.3)] translate-x-1" href="#">
+<span class="material-symbols-outlined">folder_shared</span>
+<span class="text-label-md font-label-md">Case Files</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 text-on-surface-variant hover:text-on-surface hover:bg-white/5" href="#">
+<span class="material-symbols-outlined">lan</span>
+<span class="text-label-md font-label-md">Network</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 text-on-surface-variant hover:text-on-surface hover:bg-white/5" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="text-label-md font-label-md">Archive</span>
+</a>
+</nav>
+<div class="px-4 mt-auto pt-6 border-t border-white/5 space-y-1">
+<button class="w-full mb-6 py-3 bg-gradient-to-r from-primary to-secondary-container text-on-primary-container font-label-md text-label-md rounded-xl shadow-lg shadow-primary/20 hover:brightness-110 transition-all">
+            Deploy Unit
+        </button>
+<a class="flex items-center gap-4 px-4 py-2 text-on-surface-variant hover:text-secondary transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">monitoring</span>
+<span class="text-label-sm font-label-sm">System Status</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-2 text-on-surface-variant hover:text-error transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">logout</span>
+<span class="text-label-sm font-label-sm">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-64 pt-20 min-h-screen relative">
+<div class="relative z-10 p-gutter max-w-container-max mx-auto">
+<!-- Header Section -->
+<div class="flex justify-between items-end mb-10">
+<div>
+<nav class="flex gap-2 text-label-sm font-label-sm text-outline mb-2">
+<span>Registry</span>
+<span>/</span>
+<span class="text-on-surface-variant">Intelligence Reports</span>
+</nav>
+<h1 class="text-display-xl font-display-xl tracking-tight leading-none text-on-surface">Reports Registry</h1>
+</div>
+<div class="flex gap-3">
+<button class="glass-panel px-6 py-2.5 rounded-xl text-label-md font-label-md text-on-surface-variant hover:text-on-surface transition-all">
+                    Export CSV
+                </button>
+<button class="bg-primary px-6 py-2.5 rounded-xl text-on-primary font-label-md text-label-md hover:shadow-[0_0_20px_rgba(181,196,255,0.4)] transition-all">
+                    Sync Data
+                </button>
+</div>
+</div>
+<!-- Integrated Search & Status Filters -->
+<div class="glass-panel p-6 rounded-3xl mb-8 flex flex-col md:flex-row gap-6 items-center">
+<div class="relative flex-1 w-full">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full bg-surface-container/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-outline/40" placeholder="Search by case ID, suspect name, or keywords..." type="text"/>
+</div>
+<div class="flex gap-2 p-1 bg-surface-container-lowest/50 rounded-2xl border border-white/5">
+<button class="px-5 py-3 rounded-xl text-label-md filter-btn-active transition-all">All Status</button>
+<button class="px-5 py-3 rounded-xl text-label-md text-on-surface-variant hover:bg-white/5 transition-all">Scored</button>
+<button class="px-5 py-3 rounded-xl text-label-md text-on-surface-variant hover:bg-white/5 transition-all">Escalated</button>
+<button class="px-5 py-3 rounded-xl text-label-md text-on-surface-variant hover:bg-white/5 transition-all">Processed</button>
+</div>
+</div>
+<div class="flex gap-6">
+<!-- Filters Sidebar -->
+<aside class="w-72 flex-shrink-0">
+<div class="glass-panel p-6 rounded-3xl sticky top-24">
+<div class="flex items-center justify-between mb-6">
+<h2 class="text-headline-md font-headline-md text-on-surface">Filters</h2>
+<button class="text-label-sm font-label-sm text-primary hover:underline">Reset</button>
+</div>
+<div class="space-y-6">
+<div>
+<label class="block text-label-sm font-label-sm text-outline mb-3">SCAM CATEGORY</label>
+<select class="w-full bg-surface-container-low border border-white/5 rounded-xl p-3 text-label-md font-label-md text-on-surface focus:border-primary focus:ring-0">
+<option>All Categories</option>
+<option>Digital Arrest</option>
+<option>KYC Phishing</option>
+<option>Sextortion</option>
+<option>Investment Scam</option>
+</select>
+</div>
+<div>
+<label class="block text-label-sm font-label-sm text-outline mb-3">LOCATION</label>
+<input class="w-full bg-surface-container-low border border-white/5 rounded-xl p-3 text-label-md font-label-md text-on-surface focus:border-primary focus:ring-0 placeholder:text-outline/40" placeholder="Search city..." type="text"/>
+</div>
+<div>
+<label class="block text-label-sm font-label-sm text-outline mb-3">DATE RANGE</label>
+<div class="grid grid-cols-2 gap-2">
+<div class="glass-panel px-3 py-2 rounded-lg text-center cursor-pointer hover:bg-white/5">
+<span class="text-label-sm font-label-sm">Last 24h</span>
+</div>
+<div class="glass-panel px-3 py-2 rounded-lg text-center cursor-pointer hover:bg-white/5 border-primary/40 text-primary">
+<span class="text-label-sm font-label-sm">Last 7d</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- Expanded Data Table -->
+<div class="flex-1 space-y-6">
+<div class="glass-panel rounded-3xl overflow-hidden shadow-2xl">
+<div class="p-6 border-b border-white/5 flex justify-between items-center bg-surface-container-low/40">
+<h2 class="text-headline-md font-headline-md text-on-surface">Active Incident Logs</h2>
+<div class="flex items-center gap-4">
+<span class="text-label-sm font-label-sm text-outline">Page 1 of 42</span>
+<div class="flex gap-1">
+<button class="p-2 glass-panel rounded-lg hover:bg-white/10 opacity-50"><span class="material-symbols-outlined">chevron_left</span></button>
+<button class="p-2 glass-panel rounded-lg hover:bg-white/10"><span class="material-symbols-outlined">chevron_right</span></button>
+</div>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="text-label-sm font-label-sm text-outline uppercase tracking-wider border-b border-white/5">
+<th class="px-6 py-5 font-semibold">Incident ID</th>
+<th class="px-6 py-5 font-semibold">Incident Title</th>
+<th class="px-6 py-5 font-semibold">Type</th>
+<th class="px-6 py-5 font-semibold">Status</th>
+<th class="px-6 py-5 font-semibold">Date</th>
+<th class="px-6 py-5 font-semibold">Threat Level</th>
+<th class="px-6 py-5 font-semibold">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5">
+<!-- Row 1 -->
+<tr class="hover:bg-white/[0.04] transition-all cursor-pointer group" onclick="toggleDrawer(true)">
+<td class="px-6 py-5">
+<span class="text-label-md font-label-md text-primary">#INC-9921</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="text-body-md font-body-md text-on-surface font-medium">WhatsApp Digital Arrest Scam</span>
+<span class="text-label-sm font-label-sm text-outline">Mumbai Cluster Hit</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">description</span>
+<span class="text-label-sm font-label-sm uppercase tracking-tighter">Text</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="bg-primary/10 text-primary border border-primary/20 px-3 py-1 rounded-lg text-label-sm font-label-sm">In Review</span>
+</td>
+<td class="px-6 py-5 text-label-md font-label-md text-on-surface-variant">
+                                        Aug 12, 14:22
+                                    </td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-error shadow-[0_0_8px_rgba(255,180,171,0.5)]"></span>
+<span class="text-label-md font-label-md text-error">Critical</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<button class="p-2 glass-panel rounded-lg hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-white/[0.04] transition-all cursor-pointer group" onclick="toggleDrawer(true)">
+<td class="px-6 py-5">
+<span class="text-label-md font-label-md text-primary">#INC-9854</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="text-body-md font-body-md text-on-surface font-medium">Recorded Voice Phishing</span>
+<span class="text-label-sm font-label-sm text-outline">New Delhi Regional Hub</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">audio_file</span>
+<span class="text-label-sm font-label-sm uppercase tracking-tighter">Audio</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="bg-surface-container border border-outline/20 text-on-surface-variant px-3 py-1 rounded-lg text-label-sm font-label-sm">Queued</span>
+</td>
+<td class="px-6 py-5 text-label-md font-label-md text-on-surface-variant">
+                                        Aug 12, 12:05
+                                    </td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-tertiary shadow-[0_0_8px_rgba(255,183,135,0.5)]"></span>
+<span class="text-label-md font-label-md text-tertiary">Moderate</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<button class="p-2 glass-panel rounded-lg hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-white/[0.04] transition-all cursor-pointer group" onclick="toggleDrawer(true)">
+<td class="px-6 py-5">
+<span class="text-label-md font-label-md text-primary">#INC-9712</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="text-body-md font-body-md text-on-surface font-medium">Fake Payment UI Proof</span>
+<span class="text-label-sm font-label-sm text-outline">Bangalore Merchant Scam</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">screenshot</span>
+<span class="text-label-sm font-label-sm uppercase tracking-tighter">Screenshot</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="bg-error-container/20 text-error border border-error/20 px-3 py-1 rounded-lg text-label-sm font-label-sm">Escalated</span>
+</td>
+<td class="px-6 py-5 text-label-md font-label-md text-on-surface-variant">
+                                        Aug 12, 09:44
+                                    </td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(181,196,255,0.5)]"></span>
+<span class="text-label-md font-label-md text-primary">Low</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<button class="p-2 glass-panel rounded-lg hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-white/[0.04] transition-all cursor-pointer group" onclick="toggleDrawer(true)">
+<td class="px-6 py-5">
+<span class="text-label-md font-label-md text-primary">#INC-9655</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="text-body-md font-body-md text-on-surface font-medium">Investment Fraud Script</span>
+<span class="text-label-sm font-label-sm text-outline">Hyderabad Multi-State Hit</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">description</span>
+<span class="text-label-sm font-label-sm uppercase tracking-tighter">Text</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="bg-primary/10 text-primary border border-primary/20 px-3 py-1 rounded-lg text-label-sm font-label-sm">In Review</span>
+</td>
+<td class="px-6 py-5 text-label-md font-label-md text-on-surface-variant">
+                                        Aug 12, 08:12
+                                    </td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-error shadow-[0_0_8px_rgba(255,180,171,0.5)]"></span>
+<span class="text-label-md font-label-md text-error">Critical</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<button class="p-2 glass-panel rounded-lg hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<footer class="w-full py-8 px-gutter flex flex-col md:flex-row justify-between items-center gap-4 border-t border-white/5 bg-surface-dim mt-12">
+<span class="text-label-sm font-label-sm text-outline">© 2024 TRUVIA INTELLIGENCE. ALL RIGHTS RESERVED.</span>
+<div class="flex gap-6">
+<a class="text-label-sm font-label-sm text-on-surface-variant hover:text-secondary transition-all" href="#">Privacy Protocol</a>
+<a class="text-label-sm font-label-sm text-on-surface-variant hover:text-secondary transition-all" href="#">Terms of Service</a>
+<a class="text-label-sm font-label-sm text-on-surface-variant hover:text-secondary transition-all" href="#">Security Disclosure</a>
+</div>
+</footer>
+</main>
+<!-- Incident Detail Panel (Slide-in Drawer) - Enhanced AI Extraction -->
+<div class="fixed inset-y-0 right-0 w-[540px] z-[60] glass-panel border-l border-white/10 drawer-inactive transition-transform duration-500 shadow-[-20px_0_60px_rgba(0,0,0,0.8)] flex flex-col" id="incident-drawer">
+<!-- Drawer Header -->
+<div class="p-8 border-b border-white/5 flex justify-between items-center">
+<div>
+<span class="text-label-sm font-label-sm text-primary mb-1 block uppercase tracking-widest">Intelligence View</span>
+<h2 class="text-headline-md font-headline-md text-on-surface">INCIDENT #INC-9921</h2>
+</div>
+<button class="p-2 rounded-full hover:bg-white/10 transition-colors" onclick="toggleDrawer(false)">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<!-- Drawer Content -->
+<div class="flex-1 overflow-y-auto custom-scrollbar p-8">
+<section class="mb-10">
+<h3 class="text-label-sm font-label-sm text-outline mb-4 uppercase tracking-widest">Incident Overview</h3>
+<div class="glass-panel p-6 rounded-2xl border-white/5 bg-surface-container-low/30">
+<p class="text-body-md font-body-md text-on-surface leading-relaxed">
+                    "Suspect used a spoofed CBI identification video to intimidate the victim. Claims of illegal parcel seizure (Narcotics) were used to coerce immediate fund transfer. High-pressure social engineering tactics identified."
+                </p>
+</div>
+<div class="flex gap-3 mt-4">
+<span class="bg-error-container/20 text-error px-4 py-1.5 rounded-lg text-label-sm font-label-sm font-bold border border-error/20">CRITICAL THREAT</span>
+<span class="bg-primary-container/10 text-primary px-4 py-1.5 rounded-lg text-label-sm font-label-sm border border-primary/20">AI Scored: 94/100</span>
+</div>
+</section>
+<section class="mb-10">
+<h3 class="text-label-sm font-label-sm text-outline mb-6 uppercase tracking-widest">Extracted Intelligence Entities</h3>
+<div class="space-y-6">
+<!-- Phone Numbers -->
+<div>
+<div class="flex items-center justify-between mb-3">
+<p class="text-label-sm font-label-sm text-on-surface-variant font-bold uppercase tracking-tight">Phone Numbers (1)</p>
+<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded uppercase">Verified Scammer</span>
+</div>
+<div class="flex flex-wrap gap-2">
+<div class="glass-panel px-4 py-3 rounded-xl flex items-center gap-3 border-primary/20 w-full hover:border-primary/40 transition-all cursor-pointer">
+<span class="material-symbols-outlined text-primary">phone_iphone</span>
+<span class="text-label-md font-label-md text-on-surface">+91 98XXX-XX321</span>
+<span class="material-symbols-outlined text-outline ml-auto text-[18px]">content_copy</span>
+</div>
+</div>
+</div>
+<!-- Bank Accounts -->
+<div>
+<p class="text-label-sm font-label-sm text-on-surface-variant mb-3 font-bold uppercase tracking-tight">Beneficiary Bank Accounts (2)</p>
+<div class="space-y-2">
+<div class="glass-panel px-4 py-3 rounded-xl flex items-center gap-3 border-secondary/20 hover:border-secondary/40 transition-all cursor-pointer">
+<span class="material-symbols-outlined text-secondary">account_balance</span>
+<div class="flex flex-col">
+<span class="text-label-md font-label-md text-on-surface">6629 0012 3341 092</span>
+<span class="text-[10px] text-outline">HDFC BANK - MUMBAI BRANCH</span>
+</div>
+<span class="material-symbols-outlined text-outline ml-auto text-[18px]">content_copy</span>
+</div>
+<div class="glass-panel px-4 py-3 rounded-xl flex items-center gap-3 border-secondary/20 hover:border-secondary/40 transition-all cursor-pointer">
+<span class="material-symbols-outlined text-secondary">account_balance</span>
+<div class="flex flex-col">
+<span class="text-label-md font-label-md text-on-surface">1102 9934 8871 002</span>
+<span class="text-[10px] text-outline">ICICI BANK - NOIDA HUB</span>
+</div>
+<span class="material-symbols-outlined text-outline ml-auto text-[18px]">content_copy</span>
+</div>
+</div>
+</div>
+<!-- UPI Identities -->
+<div>
+<p class="text-label-sm font-label-sm text-on-surface-variant mb-3 font-bold uppercase tracking-tight">UPI Identifiers (1)</p>
+<div class="glass-panel px-4 py-3 rounded-xl flex items-center gap-3 border-tertiary/20 hover:border-tertiary/40 transition-all cursor-pointer">
+<span class="material-symbols-outlined text-tertiary">contactless</span>
+<span class="text-label-md font-label-md text-on-surface">officer.cbi@okhdfc</span>
+<span class="material-symbols-outlined text-outline ml-auto text-[18px]">content_copy</span>
+</div>
+</div>
+<!-- Suspect Names -->
+<div>
+<p class="text-label-sm font-label-sm text-on-surface-variant mb-3 font-bold uppercase tracking-tight">Extracted Names (1)</p>
+<div class="glass-panel px-4 py-3 rounded-xl flex items-center gap-3 border-white/5">
+<span class="material-symbols-outlined text-outline">person</span>
+<span class="text-label-md font-label-md text-on-surface">Rohan Malhotra (Alias)</span>
+</div>
+</div>
+</div>
+</section>
+<section class="mb-8">
+<h3 class="text-label-sm font-label-sm text-outline mb-4 uppercase tracking-widest">Network Correlation</h3>
+<div class="glass-panel p-5 rounded-2xl border-primary/20 bg-primary/5">
+<div class="flex items-start gap-4">
+<div class="p-3 bg-primary/20 rounded-xl">
+<span class="material-symbols-outlined text-primary">hub</span>
+</div>
+<div>
+<p class="text-label-md font-label-md text-on-surface font-bold">Intelligence Hit: Cluster ID-42</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant mt-1">This specific WhatsApp profile has been linked to 14 other reports across Maharashtra within the last 72 hours.</p>
+<button class="mt-4 text-label-sm font-label-sm text-primary hover:underline flex items-center gap-1 font-bold">
+                            Open Intelligence Graph <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Drawer Footer Actions -->
+<div class="p-8 border-t border-white/5 bg-surface-container-low/50 flex gap-4">
+<button class="flex-1 glass-panel py-4 rounded-2xl text-label-md font-label-md text-on-surface hover:bg-white/10 transition-all border-white/10">
+            Dismiss
+        </button>
+<button class="flex-1 bg-primary text-on-primary py-4 rounded-2xl text-label-md font-label-md hover:shadow-lg hover:shadow-primary/30 transition-all font-bold">
+            Escalate Case
+        </button>
+</div>
+</div>
+<!-- Backdrop for Drawer -->
+<div class="fixed inset-0 bg-black/70 backdrop-blur-md z-[55] hidden transition-opacity duration-300 opacity-0" id="drawer-backdrop" onclick="toggleDrawer(false)"></div>
+<script>
+    function toggleDrawer(open) {
+        const drawer = document.getElementById('incident-drawer');
+        const backdrop = document.getElementById('drawer-backdrop');
+        
+        if (open) {
+            drawer.classList.remove('drawer-inactive');
+            drawer.classList.add('drawer-active');
+            backdrop.classList.remove('hidden');
+            setTimeout(() => backdrop.classList.add('opacity-100'), 10);
+            document.body.style.overflow = 'hidden';
+        } else {
+            drawer.classList.add('drawer-inactive');
+            drawer.classList.remove('drawer-active');
+            backdrop.classList.remove('opacity-100');
+            setTimeout(() => {
+                backdrop.classList.add('hidden');
+                document.body.style.overflow = 'auto';
+            }, 300);
+        }
+    }
+
+    // Row entrance animation
+    document.addEventListener('DOMContentLoaded', () => {
+        const rows = document.querySelectorAll('tbody tr');
+        rows.forEach((row, i) => {
+            row.style.opacity = '0';
+            row.style.transform = 'translateY(8px)';
+            setTimeout(() => {
+                row.style.transition = 'all 0.5s cubic-bezier(0.16, 1, 0.3, 1)';
+                row.style.opacity = '1';
+                row.style.transform = 'translateY(0)';
+            }, i * 40 + 150);
+        });
+    });
+</script>
+</body></html>

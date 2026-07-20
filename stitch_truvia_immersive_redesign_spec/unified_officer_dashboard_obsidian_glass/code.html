@@ -1,0 +1,474 @@
+<!DOCTYPE html><html class="dark" lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">try{
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-container": "#00226d",
+                        "outline-variant": "rgba(255, 255, 255, 0.08)",
+                        "on-primary": "#00287c",
+                        "on-tertiary-fixed": "#311300",
+                        "on-primary-fixed-variant": "#003bae",
+                        "tertiary-container": "#e07314",
+                        "secondary-fixed": "#63f7ff",
+                        "surface-container-high": "rgba(255, 255, 255, 0.05)",
+                        "primary": "#b5c4ff",
+                        "surface-dim": "#06070a",
+                        "primary-fixed-dim": "#b5c4ff",
+                        "tertiary-fixed": "#ffdcc7",
+                        "inverse-on-surface": "#2f3034",
+                        "on-error-container": "#ffdad6",
+                        "primary-container": "#658aff",
+                        "on-secondary-fixed-variant": "#004f53",
+                        "on-surface": "#e3e2e7",
+                        "surface": "#06070a",
+                        "on-tertiary-container": "#461f00",
+                        "tertiary": "#ffb787",
+                        "surface-bright": "#1a1b1f",
+                        "on-tertiary": "#512400",
+                        "surface-container-lowest": "#020203",
+                        "outline": "rgba(255, 255, 255, 0.3)",
+                        "on-error": "#690005",
+                        "on-secondary-fixed": "#002021",
+                        "primary-fixed": "#dce1ff",
+                        "inverse-primary": "#1c53d7",
+                        "tertiary-fixed-dim": "#ffb787",
+                        "surface-tint": "#b5c4ff",
+                        "on-secondary-container": "#006c71",
+                        "inverse-surface": "#e3e2e7",
+                        "error-container": "#93000a",
+                        "surface-container": "rgba(30, 31, 35, 0.6)",
+                        "error": "#ffb4ab",
+                        "surface-variant": "#1e1f23",
+                        "secondary-container": "#00f4fe",
+                        "on-surface-variant": "#a0a3b1",
+                        "on-secondary": "#003739",
+                        "surface-container-low": "#0d0e12",
+                        "on-background": "#e3e2e7",
+                        "on-primary-fixed": "#00164e",
+                        "secondary": "#e6feff",
+                        "background": "#06070a",
+                        "surface-container-highest": "rgba(255, 255, 255, 0.1)",
+                        "secondary-fixed-dim": "#00dce5",
+                        "on-tertiary-fixed-variant": "#723600"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "3xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "container-max": "1440px",
+                        "gutter": "24px",
+                        "unit": "8px",
+                        "margin-desktop": "40px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Outfit", "sans-serif"],
+                        "label-sm": ["Inter", "sans-serif"],
+                        "body-md": ["Inter", "sans-serif"],
+                        "display-xl": ["Outfit", "sans-serif"],
+                        "label-md": ["Inter", "sans-serif"],
+                        "headline-md": ["Outfit", "sans-serif"],
+                        "body-sm": ["Inter", "sans-serif"],
+                        "body-lg": ["Inter", "sans-serif"]
+                    }
+                },
+            },
+        }
+    }catch(_e){}</script></head><body class="flex min-h-screen">
+    <div class="bg-shader"></div>
+
+    <!-- SideNavBar -->
+    <aside class="flex flex-col py-8 fixed left-0 top-0 z-50 h-screen w-64 border-r border-white/5 bg-surface-container-lowest/90 backdrop-blur-2xl shadow-[20px_0_40px_rgba(0,0,0,0.5)]">
+        <div class="px-6 mb-8">
+    <div class="flex items-center gap-3 mb-8">
+        <span class="font-headline-md text-xl font-black tracking-widest text-on-surface">TRUVIA</span>
+        <div class="flex-grow"></div>
+        <div class="flex gap-4">
+            <span class="text-on-surface-variant font-medium text-sm">Dashboard</span>
+        </div>
+    </div>
+    <div class="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-surface-container-highest flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.05)]">
+            <span class="material-symbols-outlined text-on-surface-variant">shield</span>
+        </div>
+        <div>
+            <div class="text-on-surface font-bold text-sm">Unit 734</div>
+            <div class="text-outline text-[10px] uppercase tracking-wider">Sgt. Miller</div>
+        </div>
+    </div>
+</div>
+        <nav class="flex flex-col gap-6 flex-grow"><div class="flex flex-col gap-1 px-4">
+    <button class="flex items-center gap-4 px-4 py-3 rounded-xl text-on-surface-variant hover:bg-white/5 transition-all">
+        <span class="material-symbols-outlined text-2xl">grid_view</span>
+        <span class="font-headline-md text-sm font-medium">Command</span>
+    </button>
+    <button class="flex items-center gap-4 px-4 py-3 rounded-xl text-on-surface-variant hover:bg-white/5 transition-all">
+        <span class="material-symbols-outlined text-2xl">security</span>
+        <span class="font-headline-md text-sm font-medium">Intelligence</span>
+    </button>
+    <button class="flex items-center gap-4 px-4 py-3 rounded-xl text-on-surface-variant hover:bg-white/5 transition-all">
+        <span class="material-symbols-outlined text-2xl">videocam</span>
+        <span class="font-headline-md text-sm font-medium">Surveillance</span>
+    </button>
+    <button class="flex items-center gap-4 px-4 py-3 rounded-xl bg-white/[0.08] text-on-surface border-l-2 border-secondary-container shadow-[0_0_20px_rgba(0,244,254,0.1)] transition-all">
+        <span class="material-symbols-outlined text-2xl">folder_open</span>
+        <span class="font-headline-md text-sm font-medium">Case Files</span>
+    </button>
+    <button class="flex items-center gap-4 px-4 py-3 rounded-xl text-on-surface-variant hover:bg-white/5 transition-all">
+        <span class="material-symbols-outlined text-2xl">account_tree</span>
+        <span class="font-headline-md text-sm font-medium">Network</span>
+    </button>
+    <button class="flex items-center gap-4 px-4 py-3 rounded-xl text-on-surface-variant hover:bg-white/5 transition-all">
+        <span class="material-symbols-outlined text-2xl">history</span>
+        <span class="font-headline-md text-sm font-medium">Archive</span>
+    </button>
+</div></nav>
+        <div class="mt-auto px-4 pb-8 space-y-6">
+    <button class="w-full py-4 rounded-2xl bg-gradient-to-r from-[#A2B9FF] to-[#00F4FE] text-background font-bold text-sm shadow-[0_0_20px_rgba(0,244,254,0.4)] hover:scale-[1.02] transition-transform">
+        Deploy Unit
+    </button>
+    <div class="space-y-4 px-2">
+        <button class="flex items-center gap-4 text-on-surface-variant hover:text-on-surface transition-colors">
+            <span class="material-symbols-outlined text-xl">analytics</span>
+            <span class="font-headline-md text-xs font-medium">System Status</span>
+        </button>
+        <button class="flex items-center gap-4 text-on-surface-variant hover:text-on-surface transition-colors">
+            <span class="material-symbols-outlined text-xl">logout</span>
+            <span class="font-headline-md text-xs font-medium">Logout</span>
+        </button>
+    </div>
+</div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="ml-20 md:ml-24 w-full relative min-h-screen flex flex-col lg:flex-row">
+        <div class="flex-grow">
+            <!-- Header -->
+            <header class="flex justify-between items-center w-full px-margin-desktop sticky top-0 z-40 bg-background/40 backdrop-blur-xl h-20 border-b border-white/5">
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-2">
+                        <span class="text-outline font-label-md tracking-widest uppercase text-[11px]">Intelligence</span>
+                        <span class="material-symbols-outlined text-outline/50 text-sm">chevron_right</span>
+                        <span class="text-on-surface font-headline-md text-base">Dashboard</span>
+                    </div>
+                    <div class="hidden md:flex gap-8 ml-10">
+                        <a class="text-secondary-container border-b-2 border-secondary-container pb-2 text-[13px] font-semibold tracking-wide" href="#">Network</a>
+                        <a class="text-outline hover:text-on-surface transition-all duration-300 text-[13px] font-medium tracking-wide" href="#">Geofence</a>
+                        <a class="text-outline hover:text-on-surface transition-all duration-300 text-[13px] font-medium tracking-wide" href="#">Archive</a>
+                    </div>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="relative flex items-center bg-white/5 border border-white/10 rounded-xl px-4 py-2">
+                        <span class="material-symbols-outlined text-outline text-xl">search</span>
+                        <input class="bg-transparent border-none focus:ring-0 text-sm font-body-md placeholder-outline/50 w-48 lg:w-64" placeholder="Search case ID..." type="text">
+                    </div>
+                    <button class="bg-error-container/10 text-error px-4 py-2 rounded-xl border border-error/20 font-label-md text-[11px] font-bold tracking-widest flex items-center gap-2 pulse-alert crimson-glow">
+                        <span class="w-2 h-2 rounded-full bg-error shadow-[0_0_8px_#ffb4ab]"></span> ALERT STATUS
+                    </button>
+                    <button class="text-outline hover:text-on-surface transition-colors relative">
+                        <span class="material-symbols-outlined text-2xl">notifications</span>
+                        <span class="absolute top-0 right-0 w-2 h-2 bg-secondary-container rounded-full border-2 border-background"></span>
+                    </button>
+                </div>
+            </header>
+
+            <div class="px-margin-desktop py-8 max-w-container-max mx-auto space-y-gutter">
+                <!-- Top Metrics Bar -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter">
+                    <div class="glass-panel p-6 electric-glow group hover:bg-white/[0.06] transition-all duration-500">
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="text-outline font-label-md uppercase tracking-[0.15em] text-[10px]">Total Complaints</span>
+                            <span class="material-symbols-outlined text-secondary-container">report_problem</span>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="font-display-xl text-on-surface text-5xl font-bold leading-none tracking-tight">202</span>
+                        </div>
+                    </div>
+                    <div class="glass-panel p-6 group hover:bg-white/[0.06] transition-all duration-500">
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="text-outline font-label-md uppercase tracking-[0.15em] text-[10px]">Active Cases</span>
+                            <span class="material-symbols-outlined text-secondary-container">search</span>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="font-display-xl text-on-surface text-5xl font-bold leading-none tracking-tight">23</span>
+                        </div>
+                    </div>
+                    <div class="glass-panel p-6 group hover:bg-white/[0.06] transition-all duration-500">
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="text-outline font-label-md uppercase tracking-[0.15em] text-[10px]">Critical Threats</span>
+                            <span class="material-symbols-outlined text-error">dangerous</span>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="font-display-xl text-error text-5xl font-bold leading-none tracking-tight">0</span>
+                        </div>
+                    </div>
+                    <div class="glass-panel p-6 group hover:bg-white/[0.06] transition-all duration-500">
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="text-outline font-label-md uppercase tracking-[0.15em] text-[10px]">High-Risk</span>
+                            <span class="material-symbols-outlined text-tertiary">warning</span>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="font-display-xl text-on-surface text-5xl font-bold leading-none tracking-tight">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">
+                    <!-- Complaint Trend -->
+                    <div class="glass-panel p-8">
+                        <div class="flex justify-between items-center mb-8">
+                            <div>
+                                <h2 class="font-headline-md text-xl text-on-surface">Complaint Trend</h2>
+                                <p class="text-outline text-[11px] uppercase tracking-widest mt-1">Live Frequency Metrics</p>
+                            </div>
+                            <span class="bg-secondary-container/10 text-secondary-container px-3 py-1 rounded-full text-[10px] font-bold">24H CYCLE</span>
+                        </div>
+                        <div class="h-48 relative">
+                            <svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 300">
+                                <defs>
+                                    <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+                                        <stop offset="0%" stop-color="#00f4fe" stop-opacity="0.3"></stop>
+                                        <stop offset="100%" stop-color="#00f4fe" stop-opacity="0"></stop>
+                                    </linearGradient>
+                                </defs>
+                                <path d="M0,250 Q100,200 200,220 T400,100 T600,150 T800,80 T1000,50 V300 H0 Z" fill="url(#chartGradient)"></path>
+                                <path class="radar-line" d="M0,250 Q100,200 200,220 T400,100 T600,150 T800,80 T1000,50" fill="none" stroke="#00f4fe" stroke-width="4" stroke-linecap="round"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <!-- Scam Vector Distribution -->
+                    <div class="glass-panel p-8">
+                        <div class="flex justify-between items-center mb-8">
+                            <div>
+                                <h2 class="font-headline-md text-xl text-on-surface">Scam Vector Distribution</h2>
+                                <p class="text-outline text-[11px] uppercase tracking-widest mt-1">Categorical Impact Analysis</p>
+                            </div>
+                        </div>
+                        <div class="space-y-6">
+                            <div>
+                                <div class="flex justify-between text-[13px] font-label-md mb-2">
+                                    <span class="text-on-surface font-medium">Digital Arrest</span>
+                                    <span class="text-secondary-container font-bold">42%</span>
+                                </div>
+                                <div class="h-2.5 bg-white/5 rounded-full overflow-hidden">
+                                    <div class="h-full bg-gradient-to-r from-secondary-container/50 to-secondary-container shadow-[0_0_10px_rgba(0,244,254,0.3)] transition-all duration-1000" style="width: 42%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[13px] font-label-md mb-2">
+                                    <span class="text-on-surface font-medium">UPI Refund</span>
+                                    <span class="text-primary font-bold">28%</span>
+                                </div>
+                                <div class="h-2.5 bg-white/5 rounded-full overflow-hidden">
+                                    <div class="h-full bg-gradient-to-r from-primary/50 to-primary transition-all duration-1000" style="width: 28%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[13px] font-label-md mb-2">
+                                    <span class="text-on-surface font-medium">KYC Fraud</span>
+                                    <span class="text-tertiary font-bold">18%</span>
+                                </div>
+                                <div class="h-2.5 bg-white/5 rounded-full overflow-hidden">
+                                    <div class="h-full bg-gradient-to-r from-tertiary/50 to-tertiary transition-all duration-1000" style="width: 18%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Incidents Table -->
+                <div class="glass-panel overflow-hidden">
+                    <div class="px-8 py-6 border-b border-white/5 flex justify-between items-center">
+                        <h2 class="font-headline-md text-xl text-on-surface">Recent Incidents</h2>
+                        <button class="text-outline hover:text-on-surface text-[12px] font-bold uppercase tracking-widest flex items-center gap-1">
+                            Export Log <span class="material-symbols-outlined text-sm">download</span>
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left font-body-sm">
+                            <thead class="text-outline uppercase tracking-[0.15em] text-[10px] font-bold">
+                                <tr>
+                                    <th class="px-8 py-5">Case ID</th>
+                                    <th class="px-8 py-5">Incident Subject</th>
+                                    <th class="px-8 py-5">Threat Level</th>
+                                    <th class="px-8 py-5">Action Status</th>
+                                    <th class="px-8 py-5">Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-white/5">
+                                <tr class="hover:bg-white/[0.03] transition-colors group">
+                                    <td class="px-8 py-5 font-headline-md text-sm text-secondary-container">INC-88219</td>
+                                    <td class="px-8 py-5 text-on-surface font-medium">Suspicious UPI Activity</td>
+                                    <td class="px-8 py-5">
+                                        <span class="px-3 py-1 rounded-lg bg-error/10 text-error text-[9px] font-black border border-error/20 uppercase tracking-tighter">Critical</span>
+                                    </td>
+                                    <td class="px-8 py-5">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-pulse"></span>
+                                            <span class="font-label-md text-[11px] text-secondary-container font-bold uppercase tracking-widest">Escalated</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-8 py-5 text-outline font-label-md text-xs tabular-nums">08:42:01</td>
+                                </tr>
+                                <tr class="hover:bg-white/[0.03] transition-colors group">
+                                    <td class="px-8 py-5 font-headline-md text-sm text-secondary-container">INC-88224</td>
+                                    <td class="px-8 py-5 text-on-surface font-medium">Impersonation Call</td>
+                                    <td class="px-8 py-5">
+                                        <span class="px-3 py-1 rounded-lg bg-tertiary/10 text-tertiary text-[9px] font-black border border-tertiary/20 uppercase tracking-tighter">Moderate</span>
+                                    </td>
+                                    <td class="px-8 py-5">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+                                            <span class="font-label-md text-[11px] text-on-surface-variant font-bold uppercase tracking-widest">Scored</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-8 py-5 text-outline font-label-md text-xs tabular-nums">08:40:15</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Bottom Distribution Charts -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">
+                    <div class="glass-panel p-8">
+                        <h2 class="font-headline-md text-xl text-on-surface mb-8">City Distribution</h2>
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-center p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-all cursor-default">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-2 h-2 rounded-full bg-secondary-container shadow-[0_0_8px_#00f4fe]"></div>
+                                    <span class="text-on-surface font-body-md font-medium">Mumbai</span>
+                                </div>
+                                <span class="text-secondary-container font-bold tabular-nums">142</span>
+                            </div>
+                            <div class="flex justify-between items-center p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-all cursor-default">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-2 h-2 rounded-full bg-primary"></div>
+                                    <span class="text-on-surface font-body-md font-medium">Delhi</span>
+                                </div>
+                                <span class="text-primary font-bold tabular-nums">98</span>
+                            </div>
+                            <div class="flex justify-between items-center p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-all cursor-default">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-2 h-2 rounded-full bg-tertiary"></div>
+                                    <span class="text-on-surface font-body-md font-medium">Bangalore</span>
+                                </div>
+                                <span class="text-tertiary font-bold tabular-nums">64</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass-panel p-8">
+                        <h2 class="font-headline-md text-xl text-on-surface mb-8">Threat Score Distribution</h2>
+                        <div class="flex items-center justify-center h-48">
+                            <div class="relative w-40 h-40 flex items-center justify-center">
+                                <!-- Outer rotating ring -->
+                                <div class="absolute inset-0 rounded-full border border-white/10 border-dashed animate-spin" style="animation-duration: 20s"></div>
+                                <!-- Progress ring -->
+                                <svg class="absolute inset-0 w-full h-full -rotate-90">
+                                    <circle cx="80" cy="80" r="74" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="12"></circle>
+                                    <circle cx="80" cy="80" r="74" fill="none" stroke="#00f4fe" stroke-width="12" stroke-dasharray="465" stroke-dashoffset="84" stroke-linecap="round" class="drop-shadow-[0_0_8px_rgba(0,244,254,0.5)]"></circle>
+                                </svg>
+                                <div class="text-center z-10">
+                                    <div class="text-5xl font-display-xl text-on-surface font-bold leading-none">82</div>
+                                    <div class="text-[9px] font-label-md text-outline uppercase tracking-[0.2em] mt-2 font-black">AVG INDEX</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Neural Analysis Side Panel -->
+        <aside class="flex flex-col py-8 fixed left-0 top-0 z-50 h-screen w-64 border-r border-white/5 bg-surface-container-lowest/90 backdrop-blur-2xl shadow-[20px_0_40px_rgba(0,0,0,0.5)]">
+            <div class="px-6 mb-8">
+    <div class="flex items-center gap-3 mb-8">
+        <span class="font-headline-md text-xl font-black tracking-widest text-on-surface">TRUVIA</span>
+        <div class="flex-grow"></div>
+        <div class="flex gap-4">
+            <span class="text-on-surface-variant font-medium text-sm">Dashboard</span>
+        </div>
+    </div>
+    <div class="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-surface-container-highest flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.05)]">
+            <span class="material-symbols-outlined text-on-surface-variant">shield</span>
+        </div>
+        <div>
+            <div class="text-on-surface font-bold text-sm">Unit 734</div>
+            <div class="text-outline text-[10px] uppercase tracking-wider">Sgt. Miller</div>
+        </div>
+    </div>
+</div>
+
+            <div class="flex-grow">
+                <h3 class="font-label-md text-outline uppercase tracking-[0.2em] text-[10px] font-black mb-6">Priority Alerts Feed</h3>
+                <div class="space-y-4">
+                    <div class="flex gap-4 p-5 rounded-2xl hover:bg-white/5 transition-all duration-300 border-l-4 border-error crimson-glow bg-white/[0.02]">
+                        <span class="material-symbols-outlined text-error mt-0.5">emergency</span>
+                        <div>
+                            <div class="text-on-surface font-headline-md text-sm font-bold">High-Volume Velocity Attack</div>
+                            <div class="text-[11px] text-outline mt-1 font-medium">2 mins ago • Source: Node 04</div>
+                        </div>
+                    </div>
+                    <div class="flex gap-4 p-5 rounded-2xl hover:bg-white/5 transition-all duration-300 border-l-4 border-tertiary bg-white/[0.02]">
+                        <span class="material-symbols-outlined text-tertiary mt-0.5">distance</span>
+                        <div>
+                            <div class="text-on-surface font-headline-md text-sm font-bold">Geographic Anomaly Detected</div>
+                            <div class="text-[11px] text-outline mt-1 font-medium">15 mins ago • Source: Global-X</div>
+                        </div>
+                    </div>
+                    <div class="flex gap-4 p-5 rounded-2xl hover:bg-white/5 transition-all duration-300 border-l-4 border-secondary-container bg-white/[0.02]">
+                        <span class="material-symbols-outlined text-secondary-container mt-0.5">task_alt</span>
+                        <div>
+                            <div class="text-on-surface font-headline-md text-sm font-bold">Model Retraining Complete</div>
+                            <div class="text-[11px] text-outline mt-1 font-medium">1 hour ago • Auto-system</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-auto px-4 pb-8 space-y-6">
+    <button class="w-full py-4 rounded-2xl bg-gradient-to-r from-[#A2B9FF] to-[#00F4FE] text-background font-bold text-sm shadow-[0_0_20px_rgba(0,244,254,0.4)] hover:scale-[1.02] transition-transform">
+        Deploy Unit
+    </button>
+    <div class="space-y-4 px-2">
+        <button class="flex items-center gap-4 text-on-surface-variant hover:text-on-surface transition-colors">
+            <span class="material-symbols-outlined text-xl">analytics</span>
+            <span class="font-headline-md text-xs font-medium">System Status</span>
+        </button>
+        <button class="flex items-center gap-4 text-on-surface-variant hover:text-on-surface transition-colors">
+            <span class="material-symbols-outlined text-xl">logout</span>
+            <span class="font-headline-md text-xs font-medium">Logout</span>
+        </button>
+    </div>
+</div>
+        </aside>
+    </main>
+
+    <!-- Contextual FAB -->
+    <button class="fixed bottom-10 right-10 w-16 h-16 rounded-2xl bg-secondary-container text-background shadow-[0_20px_50px_rgba(0,244,254,0.3)] hover:scale-110 active:scale-95 transition-all duration-300 group z-50 flex items-center justify-center">
+        <span class="material-symbols-outlined text-3xl font-bold">add</span>
+        <div class="absolute right-20 scale-0 group-hover:scale-100 origin-right transition-transform duration-300">
+            <div class="bg-surface-container-high backdrop-blur-xl border border-white/10 p-3 px-6 rounded-xl shadow-2xl whitespace-nowrap">
+                <span class="font-label-md text-[11px] font-black uppercase tracking-[0.2em] text-on-surface">Initialize New Case</span>
+            </div>
+        </div>
+    </button>
+
+    <script class="">
+        // Micro-interactions for glass panels
+        document.querySelectorAll('.glass-panel').forEach(panel => {
+            panel.addEventListener('mousemove', (e) => {
+                const rect = panel.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                panel.style.background = `radial-gradient(circle at ${x}px ${y}px, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 50%, rgba(255, 255, 255, 0) 100%)`;
+            });
+            panel.addEventListener('mouseleave', () => {
+                panel.style.background</script></body></html>

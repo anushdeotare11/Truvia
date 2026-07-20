@@ -331,7 +331,7 @@ export default function LiveShieldPage() {
                     <YAxis domain={[0, 100]} stroke="#ffffff80" fontSize={12} />
                     <Tooltip />
                     <ReferenceLine y={70} stroke="#ffb4ab" strokeDasharray="4 4" label={{ value: "High", fill: "#ffb4ab", fontSize: 10 }} />
-                    <Line type="monotone" dataKey="score" stroke="#c1c1ff" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="score" stroke="#4da2ff" strokeWidth={2} dot={{ r: 3 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>

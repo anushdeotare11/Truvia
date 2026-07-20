@@ -11,6 +11,13 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const { user } = useAuth();
   const items = user ? navForRole(user.role) : [];
 
+  // Role-based primary CTA (label + destination). Citizens file reports;
+  // officers/admins open case work.
+  const cta =
+    user?.role === "citizen"
+      ? { label: "New Report", href: "/fraud-shield", icon: "add" }
+      : { label: "New Case", href: "/investigations", icon: "add" };
+
   return (
     <>
       {/* Mobile backdrop */}
@@ -22,21 +29,39 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         />
       )}
       <aside
-        className={`fixed left-0 top-0 h-screen w-sidebar-width bg-surface-container-lowest border-r border-outline-variant flex flex-col z-[60] transition-transform duration-300 ${
+        className={`fixed left-0 top-0 h-screen w-sidebar-width bg-surface-container-lowest/90 backdrop-blur-2xl border-r border-white/5 shadow-[20px_0_40px_rgba(0,0,0,0.5)] flex flex-col z-[60] transition-transform duration-300 ${
           open ? "translate-x-0" : "-translate-x-full"
         } lg:translate-x-0`}
       >
-        <div className="px-card-padding py-stack-lg flex items-center gap-stack-sm">
-          <div className="w-10 h-10 bg-primary-container rounded-lg flex items-center justify-center">
-            <Icon name="security" className="text-white text-[24px]" fill />
+        {/* Logo lockup */}
+        <div className="px-card-padding pt-stack-lg pb-stack-md flex items-center gap-stack-sm">
+          <div className="w-10 h-10 bg-primary/15 border border-primary/25 rounded-lg flex items-center justify-center">
+            <Icon name="security" className="text-primary text-[24px]" fill />
           </div>
           <div className="flex flex-col">
-            <span className="text-headline-sm font-bold text-primary tracking-tight leading-tight">
+            <span className="text-headline-sm font-heading font-bold text-primary tracking-tight leading-tight">
               TRUVIA
             </span>
             <span className="font-label-md text-[10px] text-on-surface-variant -mt-0.5 uppercase tracking-widest">
               Intelligence
             </span>
+          </div>
+        </div>
+
+        {/* Profile card */}
+        <div className="px-stack-md pb-stack-md">
+          <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-surface-container-highest flex items-center justify-center text-on-surface-variant shrink-0">
+              <Icon name="account_circle" className="text-[24px]" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="font-heading font-bold text-on-surface truncate leading-tight">
+                {user?.name ?? "—"}
+              </span>
+              <span className="text-[10px] uppercase tracking-wider text-outline truncate">
+                {user?.role ?? ""}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -49,10 +74,10 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                 key={`${item.name}-${item.href}`}
                 href={item.href}
                 onClick={onClose}
-                className={`flex items-center gap-stack-md px-stack-md py-stack-sm rounded-lg transition-colors ${
+                className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${
                   active
-                    ? "bg-primary-container/20 text-primary font-bold"
-                    : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+                    ? "bg-primary-container/20 text-primary border-l-4 border-primary shadow-lg shadow-primary/10 translate-x-1"
+                    : "text-on-surface-variant hover:bg-white/5 hover:text-on-surface"
                 }`}
               >
                 <Icon name={item.icon} fill={active} />
@@ -62,20 +87,25 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
           })}
         </nav>
 
-        <div className="p-stack-md border-t border-outline-variant">
-          <div className="flex items-center gap-stack-md p-stack-sm rounded-lg bg-surface-container">
-            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-on-primary shrink-0">
-              <Icon name="account_circle" className="text-[22px]" />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-label-md text-[11px] text-on-surface font-bold truncate">
-                {user?.name ?? "—"}
-              </span>
-              <span className="text-[10px] text-primary uppercase tracking-widest truncate">
-                {user?.role ?? ""}
-              </span>
-            </div>
-          </div>
+        <div className="p-stack-md border-t border-white/5 space-y-stack-sm">
+          <Link
+            href={cta.href}
+            onClick={onClose}
+            className="w-full py-3 rounded-2xl bg-gradient-to-r from-primary to-secondary-container text-on-primary-container font-label-md primary-glow hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
+          >
+            <Icon name={cta.icon} className="text-[20px]" />
+            {cta.label}
+          </Link>
+          {user?.role === "admin" && (
+            <Link
+              href="/admin/system-health"
+              onClick={onClose}
+              className="flex items-center justify-center gap-2 py-2 text-[11px] uppercase tracking-widest text-on-surface-variant hover:text-secondary-container transition-colors"
+            >
+              <Icon name="monitor_heart" className="text-[16px]" />
+              System Status
+            </Link>
+          )}
         </div>
       </aside>
     </>

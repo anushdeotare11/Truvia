@@ -16,17 +16,20 @@ export function RiskGauge({
   const clamped = Math.max(0, Math.min(100, value));
   const offset = circumference - (circumference * clamped) / 100;
   const stroke = severityStroke(severity);
+  const isCritical = (severity || "").toLowerCase() === "critical";
 
   return (
-    <div className="relative" style={{ width: size, height: size }}>
+    <div
+      className={`relative rounded-full${isCritical ? " critical-glow" : ""}`}
+      style={{ width: size, height: size }}
+    >
       <svg className="w-full h-full -rotate-90" viewBox="0 0 128 128">
         <circle
-          className="text-surface-container-high"
           cx="64"
           cy="64"
           fill="transparent"
           r={r}
-          stroke="currentColor"
+          stroke="#343538"
           strokeWidth="8"
         />
         <circle
@@ -44,12 +47,12 @@ export function RiskGauge({
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span
-          className="text-headline-lg font-bold"
+          className="font-heading text-headline-lg font-bold"
           style={{ color: stroke, textShadow: `0 0 10px ${stroke}55` }}
         >
           {Math.round(clamped)}%
         </span>
-        <span className="font-label-md text-on-surface-variant uppercase text-[10px]">Risk</span>
+        <span className="text-outline text-[10px] uppercase tracking-widest">Risk</span>
       </div>
     </div>
   );

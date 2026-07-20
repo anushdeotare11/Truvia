@@ -1,12 +1,19 @@
 "use client";
 
 import { useState, useEffect, useRef, FormEvent } from "react";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { RiskGauge } from "@/components/RiskGauge";
 import { ProcessingStepper } from "@/components/ProcessingStepper";
 import { api, ApiError } from "@/lib/api";
 import type { Report, ChatResponse, Citation } from "@/lib/types";
-import { severityBadge, severityText, reportTitle, formatDateTime } from "@/lib/format";
+import {
+  severityBadge,
+  severityText,
+  statusBadge,
+  reportTitle,
+  formatDateTime,
+} from "@/lib/format";
 
 type SourceType = "text" | "screenshot" | "audio";
 
@@ -15,6 +22,12 @@ interface ChatMessage {
   text: string;
   citations?: Citation[];
 }
+
+const SOURCE_ICON: Record<SourceType, string> = {
+  text: "notes",
+  screenshot: "image",
+  audio: "mic",
+};
 
 export default function FraudShieldPage() {
   const [sourceType, setSourceType] = useState<SourceType>("text");
@@ -41,6 +54,18 @@ export default function FraudShieldPage() {
   const [chatInput, setChatInput] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // ─── Motion (respects reduced-motion) ───────────────────────────────────────
+  const reduce = useReducedMotion();
+  const container: Variants = {
+    hidden: {},
+    show: { transition: { staggerChildren: reduce ? 0 : 0.08, delayChildren: 0.02 } },
+  };
+  const item: Variants = {
+    hidden: { opacity: 0, y: reduce ? 0 : 20 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
+  };
+  const cardHover = reduce ? undefined : { y: -3, transition: { duration: 0.2 } };
 
   async function loadHistory() {
     try {
@@ -201,142 +226,204 @@ export default function FraudShieldPage() {
   const victimInstructions = currentScore?.reasoning_json?.victim_instructions ?? [];
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-64px)]">
-      {/* Left: upload + result */}
-      <div className="flex-1 overflow-y-auto p-stack-lg lg:p-margin-page space-y-stack-lg custom-scrollbar">
-        <header>
-          <h1 className="text-headline-lg text-primary">Citizen Fraud Shield</h1>
-          <p className="text-on-surface-variant max-w-2xl text-body-lg mt-1">
+    <div className="relative min-h-[calc(100vh-64px)] bg-background p-6 lg:p-margin-page">
+      <motion.div
+        variants={container}
+        initial="hidden"
+        animate="show"
+        className="mx-auto w-full max-w-container-max space-y-stack-lg"
+      >
+        {/* ─── Header ─────────────────────────────────────────────────────────── */}
+        <motion.header variants={item} className="flex flex-col gap-stack-sm">
+          <p className="font-label-sm uppercase tracking-[0.25em] text-primary">Citizen Portal</p>
+          <h1 className="font-heading text-headline-lg md:text-display-lg text-on-surface">
+            Fraud Shield
+          </h1>
+          <p className="max-w-2xl text-body-lg text-on-surface-variant">
             Deploy AI-powered analysis to detect phishing, social engineering, and financial fraud in
             screenshots, audio, or text messages.
           </p>
-          <a
-            href="/live-shield"
-            className="mt-stack-md inline-flex items-center gap-stack-sm px-stack-lg py-stack-md bg-primary-container text-white font-label-md uppercase tracking-widest rounded-xl hover:brightness-110 active:scale-[0.98] transition-all"
-          >
-            <Icon name="record_voice_over" className="text-[18px]" />
-            Start a Live Session
-          </a>
-        </header>
+          <div>
+            <a
+              href="/live-shield"
+              className="mt-stack-sm inline-flex items-center gap-stack-sm rounded-xl border border-primary/40 bg-primary/10 px-stack-lg py-stack-md font-label-md uppercase tracking-widest text-primary primary-glow transition-all hover:bg-primary/20 active:scale-[0.98]"
+            >
+              <Icon name="record_voice_over" className="text-[18px]" />
+              Start a Live Session
+            </a>
+          </div>
+        </motion.header>
 
-        <div className="grid grid-cols-12 gap-gutter">
-          {/* Input */}
-          <section className="col-span-12 xl:col-span-7 space-y-stack-md">
-            {/* Source tabs */}
-            <div className="flex gap-stack-sm">
-              {(["text", "screenshot", "audio"] as SourceType[]).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => {
-                    setSourceType(t);
-                    setFile(null);
-                    setError(null);
-                  }}
-                  className={`flex items-center gap-stack-sm px-stack-md py-2 rounded-lg font-label-md uppercase transition-colors ${
-                    sourceType === t
-                      ? "bg-primary-container text-white"
-                      : "bg-surface-container-high text-on-surface hover:bg-surface-variant"
-                  }`}
-                >
-                  <Icon
-                    name={t === "text" ? "notes" : t === "screenshot" ? "image" : "mic"}
-                    className="text-[18px]"
-                  />
-                  {t}
-                </button>
-              ))}
-            </div>
+        {/* ─── Analysis grid: Evidence (5) · Results (7) ──────────────────────── */}
+        <div className="grid grid-cols-1 gap-gutter lg:grid-cols-12">
+          {/* LEFT — Evidence Capture */}
+          <motion.section variants={item} className="lg:col-span-5">
+            <div className="glass-panel space-y-stack-md p-6">
+              <div className="flex items-center gap-stack-sm">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/15">
+                  <Icon name="upload_file" className="text-[20px] text-primary" />
+                </span>
+                <h2 className="font-heading text-headline-sm text-on-surface">Evidence Capture</h2>
+              </div>
 
-            {sourceType === "text" ? (
-              <textarea
-                value={textContent}
-                onChange={(e) => setTextContent(e.target.value)}
-                rows={10}
-                placeholder="Paste the suspicious SMS, WhatsApp message, or email content here..."
-                className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-md font-body-md text-on-surface resize-none focus:ring-1 focus:ring-primary outline-none min-h-[280px]"
-              />
-            ) : (
-              <div
-                className="relative border-2 border-transparent bg-surface-container-lowest rounded-xl p-stack-lg flex flex-col items-center justify-center min-h-[280px] upload-dashed cursor-pointer hover:bg-surface-container-high/40 transition-all"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <div className="w-16 h-16 bg-surface-container-high rounded-full flex items-center justify-center mb-stack-md">
-                  <Icon name="cloud_upload" className="text-primary text-3xl" />
-                </div>
-                <h3 className="font-headline-sm text-on-surface mb-1">
-                  {file ? file.name : `Upload ${sourceType}`}
-                </h3>
-                <p className="text-on-surface-variant font-body-md text-center max-w-sm">
-                  {sourceType === "screenshot"
-                    ? "Drag and drop a screenshot (PNG/JPG) of the suspicious message."
-                    : "Upload an audio recording (MP3/WAV/M4A) of the suspicious call."}
-                </p>
-                <input
-                  ref={fileInputRef}
-                  className="hidden"
-                  type="file"
-                  accept={sourceType === "screenshot" ? "image/*" : "audio/*"}
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              {/* Segmented source control */}
+              <div className="flex gap-1 rounded-xl bg-surface-container-low p-1">
+                {(["text", "screenshot", "audio"] as SourceType[]).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => {
+                      setSourceType(t);
+                      setFile(null);
+                      setError(null);
+                    }}
+                    className={`flex flex-1 items-center justify-center gap-stack-sm rounded-lg px-stack-md py-2 font-label-md uppercase tracking-wide transition-all ${
+                      sourceType === t
+                        ? "bg-surface-container-high text-on-surface shadow-sm"
+                        : "text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    <Icon name={SOURCE_ICON[t]} className="text-[18px]" />
+                    {t}
+                  </button>
+                ))}
+              </div>
+
+              {/* Input: textarea (text) or dropzone (screenshot/audio) */}
+              {sourceType === "text" ? (
+                <textarea
+                  value={textContent}
+                  onChange={(e) => setTextContent(e.target.value)}
+                  rows={12}
+                  placeholder="Paste the suspicious SMS, WhatsApp message, or email content here..."
+                  className="min-h-[340px] w-full resize-none rounded-3xl border border-outline/20 bg-white/[0.02] p-stack-md font-body-md text-on-surface outline-none transition-all placeholder:text-on-surface-variant/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/40"
                 />
-              </div>
-            )}
+              ) : (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="group relative flex min-h-[340px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-3xl border-2 border-dashed border-outline/20 bg-white/[0.02] p-stack-lg text-center transition-all hover:border-primary/50"
+                >
+                  {/* Blurred accent blobs */}
+                  <div className="pointer-events-none absolute -left-10 -top-10 h-40 w-40 rounded-full bg-primary/20 blur-3xl" />
+                  <div className="pointer-events-none absolute -bottom-12 -right-8 h-44 w-44 rounded-full bg-secondary-container/20 blur-3xl" />
 
-            {error && (
-              <div className="flex items-start gap-stack-sm p-stack-md bg-error/10 rounded-lg border border-error/30">
-                <Icon name="error" className="text-error text-[18px]" />
-                <p className="font-body-md text-error">{error}</p>
-              </div>
-            )}
+                  {/* Raised icon tile */}
+                  <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl border border-white/10 bg-surface-container-high">
+                    <Icon
+                      name="cloud_upload"
+                      className="text-4xl text-primary transition-transform duration-300 group-hover:scale-110"
+                    />
+                  </div>
 
-            <div className="flex justify-end">
+                  <h3 className="relative mt-stack-md font-heading text-headline-sm text-on-surface">
+                    {file ? file.name : `Upload ${sourceType}`}
+                  </h3>
+                  <p className="relative mt-1 max-w-sm text-body-md text-on-surface-variant">
+                    {sourceType === "screenshot"
+                      ? "Drag and drop a screenshot of the suspicious message, or browse your device."
+                      : "Upload an audio recording of the suspicious call, or browse your device."}
+                  </p>
+
+                  {/* Browse pill */}
+                  <span className="relative mt-stack-md inline-flex items-center gap-stack-sm rounded-full border border-white/10 bg-surface-container-high px-stack-md py-2 font-label-md text-on-surface">
+                    <Icon name="folder_open" className="text-[18px]" />
+                    Browse Local Files
+                  </span>
+
+                  {/* File-type hints */}
+                  <p className="relative mt-stack-sm text-body-sm text-on-surface-variant/60">
+                    {sourceType === "screenshot" ? "PNG · JPG · WEBP" : "MP3 · WAV · M4A"}
+                  </p>
+
+                  <input
+                    ref={fileInputRef}
+                    className="hidden"
+                    type="file"
+                    accept={sourceType === "screenshot" ? "image/*" : "audio/*"}
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  />
+                </div>
+              )}
+
+              {error && (
+                <div className="flex items-start gap-stack-sm rounded-xl border border-error/30 bg-error/10 p-stack-md">
+                  <Icon name="error" className="text-[18px] text-error" />
+                  <p className="text-body-md text-error">{error}</p>
+                </div>
+              )}
+
+              {/* Run analysis */}
               <button
                 onClick={runAnalysis}
                 disabled={analyzing}
-                className="px-stack-lg py-stack-md bg-primary-container text-white font-headline-sm rounded-xl hover:shadow-[0_0_20px_rgba(93,95,239,0.3)] active:scale-[0.98] transition-all flex items-center gap-stack-md disabled:opacity-60"
+                className="btn-bloom flex w-full items-center justify-center gap-stack-md rounded-xl py-stack-md font-heading text-headline-sm text-on-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Icon name={analyzing ? "sync" : "online_prediction"} className={analyzing ? "animate-spin" : ""} />
+                <Icon
+                  name={analyzing ? "sync" : "online_prediction"}
+                  className={analyzing ? "animate-spin" : ""}
+                />
                 {analyzing ? "ANALYZING FORENSICS..." : "RUN AI ANALYSIS"}
               </button>
-            </div>
-          </section>
 
-          {/* Processing stepper — visible during analysis */}
-          {analyzing && (
-            <div className="col-span-12 p-stack-md bg-surface-container-lowest border border-outline-variant rounded-xl">
-              <ProcessingStepper stage={pipelineStage} />
-            </div>
-          )}
+              {/* Processing stepper — visible during analysis */}
+              {analyzing && (
+                <div className="rounded-xl border border-outline-variant bg-surface-container-low/60 p-stack-md">
+                  <ProcessingStepper stage={pipelineStage} />
+                </div>
+              )}
 
-          {/* Result */}
-          <section className="col-span-12 xl:col-span-5">
+              {/* Data Privacy Protocol note */}
+              <div className="flex items-start gap-stack-sm rounded-xl border border-tertiary/20 bg-tertiary/5 p-stack-md">
+                <Icon name="privacy_tip" className="text-[18px] text-tertiary" />
+                <div>
+                  <p className="font-label-md uppercase tracking-wide text-tertiary">
+                    Data Privacy Protocol
+                  </p>
+                  <p className="mt-1 text-body-sm text-on-surface-variant">
+                    Evidence is processed securely for this analysis only and is never shared without
+                    your explicit consent.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.section>
+
+          {/* RIGHT — Results */}
+          <motion.section variants={item} className="lg:col-span-7">
             {!report ? (
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-card-padding h-full flex flex-col items-center justify-center text-center min-h-[280px] opacity-70">
-                <Icon name="shield_with_heart" className="text-outline text-5xl mb-stack-md" />
-                <p className="font-body-md text-on-surface-variant max-w-xs">
+              <div className="glass-panel relative flex h-full min-h-[340px] flex-col items-center justify-center overflow-hidden p-8 text-center">
+                <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-error/10 blur-3xl" />
+                <Icon name="shield_with_heart" className="relative mb-stack-md text-6xl text-outline" />
+                <h3 className="relative mb-stack-sm font-heading text-headline-sm text-on-surface">
+                  Awaiting Evidence
+                </h3>
+                <p className="relative max-w-xs text-body-md text-on-surface-variant">
                   Submit evidence and run analysis to view the AI threat verdict here.
                 </p>
               </div>
             ) : (
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-card-padding space-y-stack-md h-full glow-effect">
-                <div className="flex items-center justify-between border-b border-outline-variant pb-stack-md">
+              <div className="glass-panel critical-glow relative h-full space-y-stack-md overflow-hidden p-8">
+                <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-error/10 blur-3xl" />
+
+                {/* Verdict header */}
+                <div className="relative flex items-center justify-between border-b border-outline-variant pb-stack-md">
                   <div className="flex flex-col">
-                    <span className="font-label-md text-on-surface-variant uppercase text-[10px] tracking-widest">
+                    <span className="font-label-sm uppercase tracking-widest text-on-surface-variant">
                       Analysis Verdict
                     </span>
-                    <span className={`font-headline-sm ${severityText(currentScore?.severity_band)}`}>
+                    <span className={`font-heading text-headline-sm ${severityText(currentScore?.severity_band)}`}>
                       {currentScore
                         ? `${currentScore.severity_band.toUpperCase()} THREAT`
                         : report.status.toUpperCase()}
                     </span>
                   </div>
-                  <div className="px-stack-sm py-1 bg-surface-container-high text-on-surface-variant text-[10px] font-bold rounded uppercase font-mono">
+                  <div className="rounded bg-surface-container-high px-stack-sm py-1 font-mono text-[10px] font-bold uppercase text-on-surface-variant">
                     #{report.id.slice(0, 8)}
                   </div>
                 </div>
 
                 {report.low_confidence_flag && (
-                  <div className="flex items-start gap-stack-sm p-stack-sm bg-tertiary/10 rounded-lg border border-tertiary/30">
-                    <Icon name="info" className="text-tertiary text-[18px]" />
+                  <div className="relative flex items-start gap-stack-sm rounded-lg border border-tertiary/30 bg-tertiary/10 p-stack-sm">
+                    <Icon name="info" className="text-[18px] text-tertiary" />
                     <p className="font-label-md text-tertiary">
                       Low input confidence — the extracted text may be incomplete. Consider re-submitting as
                       clearer text.
@@ -346,67 +433,84 @@ export default function FraudShieldPage() {
 
                 {currentScore ? (
                   <>
-                    <div className="flex flex-col items-center py-stack-md">
+                    {/* Gauge + severity pill */}
+                    <div className="relative flex flex-col items-center gap-stack-md py-stack-sm">
                       <RiskGauge value={currentScore.threat_score} severity={currentScore.severity_band} />
+                      <span
+                        className={`rounded-full px-stack-md py-1 font-label-md uppercase tracking-widest ${severityBadge(
+                          currentScore.severity_band
+                        )}`}
+                      >
+                        {currentScore.severity_band} threat
+                      </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-stack-md text-center bg-surface-container-low p-stack-md rounded-xl">
+                    {/* Confidence + category */}
+                    <div className="relative grid grid-cols-2 gap-stack-md rounded-xl border border-white/5 bg-white/5 p-stack-md text-center">
                       <div>
-                        <p className="font-label-md text-on-surface-variant uppercase text-[10px]">Confidence</p>
-                        <p className="font-headline-sm text-primary">
+                        <p className="font-label-md uppercase text-[10px] text-on-surface-variant">Confidence</p>
+                        <p className="font-heading text-headline-sm text-primary">
                           {Math.round((currentScore.confidence_score ?? 0) * 100)}%
                         </p>
                       </div>
                       <div>
-                        <p className="font-label-md text-on-surface-variant uppercase text-[10px]">Category</p>
-                        <p className="font-headline-sm text-on-surface text-[16px] leading-tight">
+                        <p className="font-label-md uppercase text-[10px] text-on-surface-variant">Category</p>
+                        <p className="font-heading text-[16px] leading-tight text-on-surface">
                           {currentScore.scam_category}
                         </p>
                       </div>
                     </div>
 
+                    {/* Red flags */}
                     {redFlags.length > 0 && (
-                      <div className="space-y-stack-sm">
-                        <p className="font-label-md text-on-surface-variant uppercase text-[10px] tracking-widest">
+                      <div className="relative space-y-stack-sm">
+                        <p className="font-label-md uppercase tracking-widest text-[10px] text-on-surface-variant">
                           Detected Red Flags
                         </p>
                         <ul className="space-y-stack-sm">
                           {redFlags.map((flag, i) => (
-                            <li
+                            <motion.li
                               key={i}
-                              className="flex items-start gap-stack-sm text-body-md bg-error/5 p-stack-sm rounded-lg border border-error/20"
+                              whileHover={cardHover}
+                              className="flex items-start gap-stack-md rounded-xl border border-white/5 bg-white/5 p-stack-md text-body-md"
                             >
-                              <Icon name="warning" className="text-error text-[18px]" />
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-error/20 bg-error/15">
+                                <Icon name="warning" className="text-[18px] text-error" />
+                              </span>
                               <span className="text-on-surface">{flag}</span>
-                            </li>
+                            </motion.li>
                           ))}
                         </ul>
                       </div>
                     )}
 
+                    {/* Recommended actions */}
                     {victimInstructions.length > 0 && (
-                      <div className="space-y-stack-sm">
-                        <p className="font-label-md text-on-surface-variant uppercase text-[10px] tracking-widest">
-                          Recommended Actions
+                      <div className="relative space-y-stack-sm">
+                        <p className="font-label-md uppercase tracking-widest text-[10px] text-on-surface-variant">
+                          Recommended Response
                         </p>
                         <ul className="space-y-stack-sm">
                           {victimInstructions.map((inst, i) => (
-                            <li
+                            <motion.li
                               key={i}
-                              className="flex items-start gap-stack-sm text-body-md bg-primary/5 p-stack-sm rounded-lg border border-primary/20"
+                              whileHover={cardHover}
+                              className="flex items-start gap-stack-md rounded-xl border border-white/5 bg-white/5 p-stack-md text-body-md"
                             >
-                              <Icon name="check_circle" className="text-primary text-[18px]" />
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/15">
+                                <Icon name="check_circle" className="text-[18px] text-primary" />
+                              </span>
                               <span className="text-on-surface">{inst}</span>
-                            </li>
+                            </motion.li>
                           ))}
                         </ul>
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="py-stack-lg text-center">
-                    <Icon name="hourglass_empty" className="text-outline text-4xl mb-stack-sm" />
-                    <p className="font-body-md text-on-surface-variant">
+                  <div className="relative py-stack-lg text-center">
+                    <Icon name="hourglass_empty" className="mb-stack-sm text-4xl text-outline" />
+                    <p className="text-body-md text-on-surface-variant">
                       Status: {report.status}. The AI scoring pipeline did not return a verdict. You can still
                       escalate this report.
                     </p>
@@ -414,34 +518,35 @@ export default function FraudShieldPage() {
                 )}
 
                 {escalated && (
-                  <div className="flex items-start gap-stack-sm p-stack-sm bg-primary/10 rounded-lg border border-primary/30">
-                    <Icon name="local_police" className="text-primary text-[18px]" />
+                  <div className="relative flex items-start gap-stack-sm rounded-lg border border-primary/30 bg-primary/10 p-stack-sm">
+                    <Icon name="local_police" className="text-[18px] text-primary" />
                     <p className="font-label-md text-primary">
                       Reported to Cyber Cell. Case reference: {escalated.caseId.slice(0, 8).toUpperCase()}
                     </p>
                   </div>
                 )}
 
-                <div className="pt-stack-md border-t border-outline-variant flex flex-col gap-stack-sm">
+                {/* Actions */}
+                <div className="relative flex flex-col gap-stack-sm border-t border-outline-variant pt-stack-md">
                   <button
                     onClick={handleEscalate}
                     disabled={escalating || report.status === "escalated"}
-                    className="w-full py-stack-md bg-primary text-on-primary rounded-xl font-label-md uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-stack-sm disabled:opacity-60"
+                    className="btn-bloom flex w-full items-center justify-center gap-stack-sm rounded-xl py-stack-md font-label-md uppercase tracking-widest text-on-primary disabled:opacity-60"
                   >
                     <Icon name="local_police" className="text-[18px]" />
                     {report.status === "escalated" ? "Reported to Cyber Cell" : "Report to Cyber Cell"}
                   </button>
                   <button
                     onClick={handleDownload}
-                    className="w-full py-stack-md bg-surface-container-high text-on-surface rounded-xl font-label-md uppercase tracking-widest hover:bg-surface-variant transition-all flex items-center justify-center gap-stack-sm"
+                    className="flex w-full items-center justify-center gap-stack-sm rounded-xl border border-white/10 bg-white/[0.02] py-stack-md font-label-md uppercase tracking-widest text-on-surface transition-all hover:bg-white/5"
                   >
                     <Icon name="file_download" className="text-[18px]" />
-                    Download Report
+                    Export Report
                   </button>
                   <button
                     onClick={handleDismiss}
                     disabled={dismissing || report.status === "dismissed" || report.status === "escalated"}
-                    className="w-full py-stack-md bg-surface-container-high text-on-surface rounded-xl font-label-md uppercase tracking-widest hover:bg-surface-variant transition-all flex items-center justify-center gap-stack-sm disabled:opacity-60"
+                    className="flex w-full items-center justify-center gap-stack-sm rounded-xl border border-white/10 bg-white/[0.02] py-stack-md font-label-md uppercase tracking-widest text-on-surface transition-all hover:bg-white/5 disabled:opacity-60"
                   >
                     <Icon name="check_circle" className="text-[18px]" />
                     {report.status === "dismissed" ? "Marked as Reviewed" : "Mark as Reviewed"}
@@ -449,108 +554,170 @@ export default function FraudShieldPage() {
                 </div>
               </div>
             )}
-          </section>
+          </motion.section>
         </div>
-      </div>
 
-      {/* Right: AI assistant + history */}
-      <aside className="w-full lg:w-[360px] border-t lg:border-t-0 lg:border-l border-outline-variant bg-surface-container-lowest flex flex-col lg:h-[calc(100vh-64px)]">
-        <div className="p-stack-lg flex-1 flex flex-col min-h-0">
-          <div className="flex items-center gap-stack-sm mb-stack-md">
-            <Icon name="smart_toy" className="text-primary" />
-            <h3 className="font-headline-sm text-on-surface">Vigil AI Assistant</h3>
-          </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-stack-md mb-stack-md min-h-[240px]">
-            {messages.map((m, i) => (
-              <div
-                key={i}
-                className={
-                  m.role === "assistant"
-                    ? "bg-surface-container-low p-stack-md rounded-xl border border-outline-variant text-body-md text-on-surface"
-                    : "bg-secondary-container p-stack-md rounded-xl text-on-secondary-container text-body-md ml-stack-md border border-primary/20"
-                }
-              >
-                <p className="whitespace-pre-wrap">{m.text}</p>
-                {m.citations && m.citations.length > 0 && (
-                  <div className="mt-stack-sm space-y-1 border-t border-outline-variant/40 pt-stack-sm">
-                    {m.citations.map((c, ci) => (
-                      <div key={ci} className="font-label-md text-[10px] text-on-surface-variant">
-                        <span className="text-primary">{c.source}</span> — {c.title}
+        {/* ─── Vigil chat (7) · Recent Scans (5) ──────────────────────────────── */}
+        <div className="grid grid-cols-1 gap-gutter lg:grid-cols-12">
+          {/* Vigil AI assistant */}
+          <motion.section variants={item} className="lg:col-span-7">
+            <div className="glass-panel flex h-full min-h-[440px] flex-col p-6">
+              <div className="flex items-center gap-stack-sm">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/15">
+                  <Icon name="smart_toy" className="text-[20px] text-primary" />
+                </span>
+                <div>
+                  <h3 className="font-heading text-headline-sm leading-tight text-on-surface">
+                    Vigil AI Assistant
+                  </h3>
+                  <p className="text-body-sm text-on-surface-variant/70">RBI / NCRP knowledge engine</p>
+                </div>
+              </div>
+
+              <div className="custom-scrollbar my-stack-md min-h-[240px] flex-1 space-y-stack-md overflow-y-auto pr-1">
+                {messages.map((m, i) => (
+                  <div
+                    key={i}
+                    className={
+                      m.role === "assistant"
+                        ? "rounded-xl border border-white/5 bg-white/5 p-stack-md text-body-md text-on-surface"
+                        : "ml-stack-md rounded-xl border border-primary/20 bg-primary/10 p-stack-md text-body-md text-on-surface"
+                    }
+                  >
+                    <p className="whitespace-pre-wrap">{m.text}</p>
+                    {m.citations && m.citations.length > 0 && (
+                      <div className="mt-stack-sm space-y-1 border-t border-outline-variant/40 pt-stack-sm">
+                        {m.citations.map((c, ci) => (
+                          <div key={ci} className="font-label-md text-[10px] text-on-surface-variant">
+                            <span className="text-primary">{c.source}</span> — {c.title}
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+                  </div>
+                ))}
+                {chatBusy && (
+                  <div className="flex items-center gap-stack-sm rounded-xl border border-white/5 bg-white/5 p-stack-md text-on-surface-variant">
+                    <Icon name="progress_activity" className="animate-spin text-[18px] text-primary" />
+                    Analyzing knowledge base...
                   </div>
                 )}
+                <div ref={chatEndRef} />
               </div>
-            ))}
-            {chatBusy && (
-              <div className="bg-surface-container-low p-stack-md rounded-xl border border-outline-variant text-on-surface-variant flex items-center gap-stack-sm">
-                <Icon name="progress_activity" className="animate-spin text-primary text-[18px]" />
-                Analyzing knowledge base...
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </div>
-          <form onSubmit={sendChat} className="relative mt-auto">
-            <textarea
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  sendChat(e as unknown as FormEvent);
-                }
-              }}
-              rows={2}
-              placeholder="Ask Vigil about a scam..."
-              className="w-full bg-surface-container-high border border-outline-variant rounded-xl p-stack-md pr-12 font-body-md text-on-surface resize-none focus:ring-1 focus:ring-primary outline-none"
-            />
-            <button
-              type="submit"
-              disabled={chatBusy}
-              className="absolute right-2 bottom-3 p-2 bg-primary text-on-primary rounded-lg hover:scale-105 transition-transform disabled:opacity-50"
-            >
-              <Icon name="send" className="text-[20px]" />
-            </button>
-          </form>
-        </div>
 
-        <div className="bg-surface-container-low p-stack-lg border-t border-outline-variant">
-          <h4 className="font-label-md text-on-surface-variant uppercase text-[10px] tracking-widest mb-stack-md">
-            Recent Analyses
-          </h4>
-          {history.length === 0 ? (
-            <p className="font-body-md text-on-surface-variant/60 text-[12px]">No previous reports yet.</p>
-          ) : (
-            <div className="space-y-stack-sm max-h-52 overflow-y-auto custom-scrollbar">
-              {history.map((r) => {
-                const sev = r.threat_scores?.[0]?.severity_band;
-                return (
-                  <button
-                    key={r.id}
-                    onClick={() => {
-                      setReport(r);
-                      setEscalated(null);
-                    }}
-                    className="w-full flex items-center gap-stack-sm group text-left hover:bg-surface-container p-stack-sm rounded-lg transition-colors"
-                  >
-                    <div className={`p-2 rounded-lg ${severityBadge(sev)}`}>
-                      <Icon name="policy" className="text-[18px]" />
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-label-md text-on-surface text-[11px] truncate">
-                        {reportTitle(r)}
-                      </span>
-                      <span className="font-body-md text-on-surface-variant text-[11px]">
-                        {formatDateTime(r.created_at)}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+              <form onSubmit={sendChat} className="relative mt-auto">
+                <textarea
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      sendChat(e as unknown as FormEvent);
+                    }
+                  }}
+                  rows={2}
+                  placeholder="Ask Vigil about a scam..."
+                  className="w-full resize-none rounded-xl border border-outline/20 bg-white/[0.03] p-stack-md pr-12 font-body-md text-on-surface outline-none transition-all placeholder:text-on-surface-variant/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/40"
+                />
+                <button
+                  type="submit"
+                  disabled={chatBusy}
+                  className="btn-bloom absolute bottom-3 right-2 rounded-lg p-2 text-on-primary disabled:opacity-50"
+                >
+                  <Icon name="send" className="text-[20px]" />
+                </button>
+              </form>
             </div>
-          )}
+          </motion.section>
+
+          {/* Recent Scans */}
+          <motion.section variants={item} className="lg:col-span-5">
+            <div className="glass-panel h-full p-6">
+              <div className="mb-stack-md flex items-center gap-stack-sm">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/15">
+                  <Icon name="history" className="text-[20px] text-primary" />
+                </span>
+                <h3 className="font-heading text-headline-sm text-on-surface">Recent Scans</h3>
+              </div>
+
+              {history.length === 0 ? (
+                <p className="text-body-sm text-on-surface-variant/60">No previous reports yet.</p>
+              ) : (
+                <div className="custom-scrollbar -mx-1 overflow-x-auto px-1">
+                  <table className="w-full border-collapse text-left">
+                    <thead>
+                      <tr className="border-b border-outline-variant">
+                        <th className="py-stack-sm pr-stack-md font-label-sm uppercase tracking-widest text-on-surface-variant">
+                          Date
+                        </th>
+                        <th className="py-stack-sm pr-stack-md font-label-sm uppercase tracking-widest text-on-surface-variant">
+                          Type
+                        </th>
+                        <th className="py-stack-sm pr-stack-md font-label-sm uppercase tracking-widest text-on-surface-variant">
+                          Score
+                        </th>
+                        <th className="py-stack-sm font-label-sm uppercase tracking-widest text-on-surface-variant">
+                          Status
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {history.map((r) => {
+                        const sev = r.threat_scores?.[0]?.severity_band;
+                        const score = r.threat_scores?.[0]?.threat_score;
+                        return (
+                          <tr
+                            key={r.id}
+                            onClick={() => {
+                              setReport(r);
+                              setEscalated(null);
+                            }}
+                            title={reportTitle(r)}
+                            className="cursor-pointer border-b border-outline-variant/40 transition-colors last:border-0 hover:bg-white/5"
+                          >
+                            <td className="whitespace-nowrap py-stack-md pr-stack-md text-body-sm text-on-surface-variant">
+                              {formatDateTime(r.created_at)}
+                            </td>
+                            <td className="py-stack-md pr-stack-md">
+                              <span className="inline-flex items-center gap-stack-sm text-body-sm text-on-surface">
+                                <Icon
+                                  name={SOURCE_ICON[r.source_type as SourceType] ?? "policy"}
+                                  className="text-[16px] text-on-surface-variant"
+                                />
+                                <span className="capitalize">{r.source_type}</span>
+                              </span>
+                            </td>
+                            <td className="py-stack-md pr-stack-md">
+                              {typeof score === "number" ? (
+                                <span
+                                  className={`rounded-full px-stack-sm py-0.5 text-[11px] font-bold ${severityBadge(sev)}`}
+                                >
+                                  {Math.round(score)}%
+                                </span>
+                              ) : (
+                                <span className="text-body-sm text-on-surface-variant/50">—</span>
+                              )}
+                            </td>
+                            <td className="py-stack-md">
+                              <span
+                                className={`rounded-full px-stack-sm py-0.5 text-[11px] font-medium uppercase tracking-wide ${statusBadge(
+                                  r.status
+                                )}`}
+                              >
+                                {r.status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </motion.section>
         </div>
-      </aside>
+      </motion.div>
     </div>
   );
 }

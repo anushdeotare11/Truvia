@@ -46,7 +46,8 @@ class InputProcessorAgent:
         self.api_key = settings.GOOGLE_API_KEY
         # Check if the API key is set and not empty/placeholder
         if self.api_key and "your-google-key" not in self.api_key and len(self.api_key) > 10:
-            genai.configure(api_key=self.api_key)
+            from app.core.genai_helper import configure_genai
+            configure_genai(self.api_key)
             self.client = genai.GenerativeModel("gemini-2.0-flash")
             logger.info("Initialized InputProcessorAgent with Google Gemini API client")
         else:

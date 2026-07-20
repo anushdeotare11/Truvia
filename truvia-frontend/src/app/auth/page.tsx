@@ -3,6 +3,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { useAuth } from "@/lib/auth";
 import { homeForRole } from "@/lib/nav";
@@ -14,6 +15,7 @@ type RoleMode = "citizen" | "agency";
 export default function AuthPage() {
   const { user, loading, login, register } = useAuth();
   const router = useRouter();
+  const reduceMotion = useReducedMotion();
 
   const [tab, setTab] = useState<Tab>("login");
   const [roleMode, setRoleMode] = useState<RoleMode>("citizen");
@@ -68,200 +70,261 @@ export default function AuthPage() {
     setInfo(null);
   }
 
+  // ─── Motion setup (respects reduced-motion) ───
+  const cardVariants: Variants = {
+    hidden: reduceMotion ? { opacity: 0 } : { opacity: 0, y: 20, scale: 0.98 },
+    show: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: reduceMotion
+        ? { duration: 0.2 }
+        : { duration: 0.6, ease: [0.16, 1, 0.3, 1], staggerChildren: 0.08, delayChildren: 0.1 },
+    },
+  };
+  const itemVariants: Variants = {
+    hidden: reduceMotion ? { opacity: 0 } : { opacity: 0, y: 12 },
+    show: { opacity: 1, y: 0, transition: { duration: reduceMotion ? 0.2 : 0.5, ease: [0.16, 1, 0.3, 1] } },
+  };
+
   return (
-    <div className="bg-surface text-on-surface min-h-screen flex flex-col items-center relative">
-      <div
-        className="fixed inset-0 pointer-events-none opacity-[0.03]"
+    <div className="bg-background text-on-surface min-h-screen flex items-center justify-center relative overflow-hidden px-margin-page">
+      {/* ─── Animated radial background glow behind card ─── */}
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute top-1/2 left-1/2 -z-10 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full"
         style={{
-          backgroundImage: "radial-gradient(circle, #908fa0 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
+          background: "radial-gradient(circle, rgba(79,123,255,0.15) 0%, transparent 70%)",
+          filter: "blur(80px)",
         }}
+        animate={reduceMotion ? undefined : { opacity: [0.3, 0.6, 0.3], scale: [1, 1.08, 1] }}
+        transition={reduceMotion ? undefined : { duration: 8, repeat: Infinity, ease: "easeInOut" }}
       />
-      <main className="flex-grow flex flex-col items-center justify-center w-full px-gutter relative z-10 py-stack-lg">
-        <Link href="/" className="mb-stack-lg text-center">
-          <h1 className="text-display-lg tracking-tight uppercase flex items-center justify-center gap-2">
-            <Icon name="shield_with_heart" className="text-[40px] text-primary" fill />
-            <span className="text-primary">TRUVIA</span>
-          </h1>
-          <p className="font-label-md text-on-surface-variant mt-1 tracking-[0.2em]">
-            PREMIER PUBLIC SAFETY NETWORK
-          </p>
-        </Link>
 
-        <div className="glass-panel border border-outline-variant w-full max-w-[440px] overflow-hidden rounded-xl">
-          {/* Tabs */}
-          <div className="flex border-b border-outline-variant">
-            {(["login", "signup"] as Tab[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => {
-                  setTab(t);
-                  setError(null);
-                  setInfo(null);
-                }}
-                className={`flex-1 py-stack-md font-label-md border-b-2 transition-all uppercase tracking-widest ${
-                  tab === t
-                    ? "border-primary text-primary"
-                    : "border-transparent text-on-surface-variant hover:text-primary"
-                }`}
-              >
-                {t === "login" ? "Login" : "Sign Up"}
-              </button>
-            ))}
-          </div>
+      {/* ─── Central Glass Card ─── */}
+      <motion.main
+        variants={cardVariants}
+        initial="hidden"
+        animate="show"
+        className="glass-panel relative w-full max-w-[400px] overflow-hidden rounded-[24px] p-6 md:p-8"
+      >
+        {/* Top-left glass shine */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-1/2 -left-1/2 h-full w-full rotate-45 bg-gradient-to-br from-white/10 to-transparent"
+        />
 
-          <div className="p-card-padding space-y-stack-md">
-            {/* Role selector */}
-            <div className="flex gap-1 p-1 bg-surface-container-lowest rounded-lg border border-outline-variant/30">
-              {(["citizen", "agency"] as RoleMode[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setRoleMode(r)}
-                  className={`flex-1 flex items-center justify-center gap-1 py-stack-sm rounded font-body-md transition-all ${
-                    roleMode === r
-                      ? "bg-primary text-on-primary shadow-md"
-                      : "text-on-surface-variant hover:text-on-surface"
-                  }`}
-                >
-                  <Icon name={r === "citizen" ? "person" : "policy"} className="text-[18px]" />
-                  {r === "citizen" ? "Citizen" : "Agency"}
-                </button>
-              ))}
-            </div>
+        {/* ─── Header ─── */}
+        <motion.div variants={itemVariants} className="relative mb-6 flex flex-col items-center text-center">
+          <Link href="/" className="group inline-flex flex-col items-center">
+            <h1 className="flex items-center gap-2 font-heading text-headline-lg tracking-tighter">
+              <Icon name="shield" className="text-[34px] text-primary" fill />
+              <span className="bg-gradient-to-r from-primary to-secondary-container bg-clip-text text-transparent">
+                Truvia
+              </span>
+            </h1>
+            <p className="mt-2 font-sans text-label-sm uppercase tracking-[0.2em] text-outline opacity-80">
+              Premier Public Safety Network
+            </p>
+          </Link>
+        </motion.div>
 
-            <div className="bg-secondary-container/20 border-l-4 border-secondary p-stack-sm rounded-r">
-              <p className="font-label-md text-on-secondary-container">
-                {roleMode === "citizen"
-                  ? "Standard encryption active for public users. Report and track fraud attempts securely."
-                  : "Authorized personnel only. Agency logins are audited and monitored."}
-              </p>
-            </div>
-
-            <form className="space-y-stack-md" onSubmit={handleSubmit}>
-              {tab === "signup" && roleMode === "citizen" && (
-                <>
-                  <Field
-                    label="Full Name"
-                    icon="badge"
-                    type="text"
-                    value={name}
-                    onChange={setName}
-                    placeholder="Rahul Sharma"
-                    required
-                  />
-                  <Field
-                    label="Phone (optional)"
-                    icon="call"
-                    type="text"
-                    value={phone}
-                    onChange={setPhone}
-                    placeholder="+91 90000 00000"
-                  />
-                </>
-              )}
-              <Field
-                label={roleMode === "agency" ? "Agency Email" : "Email Address"}
-                icon="alternate_email"
-                type="email"
-                value={email}
-                onChange={setEmail}
-                placeholder="name@example.com"
-                required
-              />
-              <Field
-                label="Password"
-                icon="lock"
-                type="password"
-                value={password}
-                onChange={setPassword}
-                placeholder="••••••••"
-                required
-              />
-
-              {roleMode === "agency" && (
-                <div className="flex items-start gap-stack-sm p-stack-sm bg-primary-container/10 rounded-lg border border-primary/20">
-                  <Icon name="security_update_good" className="text-primary text-[20px]" />
-                  <div>
-                    <p className="text-body-md font-semibold text-primary">Multi-Factor Reminder</p>
-                    <p className="font-label-md text-on-surface-variant">
-                      Agency-issued credentials required. Contact your command center for access.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {error && (
-                <div className="flex items-start gap-stack-sm p-stack-sm bg-error/10 rounded-lg border border-error/30">
-                  <Icon name="error" className="text-error text-[18px]" />
-                  <p className="font-body-md text-error">{error}</p>
-                </div>
-              )}
-              {info && (
-                <div className="flex items-start gap-stack-sm p-stack-sm bg-tertiary/10 rounded-lg border border-tertiary/30">
-                  <Icon name="info" className="text-tertiary text-[18px]" />
-                  <p className="font-body-md text-tertiary">{info}</p>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full bg-primary text-on-primary py-stack-sm rounded-lg font-label-md flex items-center justify-center gap-stack-sm hover:brightness-110 transition-all active:scale-[0.98] uppercase tracking-widest shadow-lg shadow-primary/20 disabled:opacity-60"
-              >
-                <Icon
-                  name={submitting ? "progress_activity" : tab === "login" ? "encrypted" : "how_to_reg"}
-                  className={`text-[18px] ${submitting ? "animate-spin" : ""}`}
+        {/* ─── Login / Sign-up tabs ─── */}
+        <motion.div variants={itemVariants} className="relative mb-4 flex border-b border-white/5">
+          {(["login", "signup"] as Tab[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => {
+                setTab(t);
+                setError(null);
+                setInfo(null);
+              }}
+              className={`relative flex-1 pb-3 pt-1 font-sans text-label-md uppercase tracking-widest transition-colors ${
+                tab === t ? "text-secondary-fixed-dim" : "text-outline hover:text-on-surface"
+              }`}
+            >
+              {t === "login" ? "Login" : "Sign Up"}
+              {tab === t && (
+                <motion.span
+                  layoutId="auth-tab-underline"
+                  className="absolute -bottom-px left-0 right-0 h-0.5 rounded-full bg-secondary-fixed-dim"
+                  transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 400, damping: 32 }}
                 />
-                {submitting ? "Processing" : tab === "login" ? "Secure Login" : "Create Account"}
-              </button>
-            </form>
+              )}
+            </button>
+          ))}
+        </motion.div>
 
-            <div className="pt-stack-sm text-center">
-              <p className="font-label-md text-on-surface-variant">
-                {tab === "login" ? "New to Truvia? " : "Already registered? "}
-                <button
-                  onClick={() => {
-                    setTab(tab === "login" ? "signup" : "login");
-                    setError(null);
-                    setInfo(null);
-                  }}
-                  className="text-secondary font-semibold hover:text-primary transition-colors"
-                >
-                  {tab === "login" ? "Create an Account" : "Login"}
-                </button>
-              </p>
-            </div>
+        {/* ─── Citizen / Agency pill switcher ─── */}
+        <motion.div variants={itemVariants} className="relative mb-4 flex rounded-full bg-white/5 p-1">
+          {/* Sliding indicator */}
+          <motion.div
+            aria-hidden="true"
+            className="absolute bottom-1 top-1 w-[calc(50%-4px)] rounded-full bg-white/10"
+            animate={{ x: roleMode === "citizen" ? 0 : "calc(100% + 8px)" }}
+            transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 350, damping: 30 }}
+          />
+          {(["citizen", "agency"] as RoleMode[]).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRoleMode(r)}
+              className={`relative z-10 flex flex-1 items-center justify-center gap-1.5 rounded-full py-2.5 font-sans text-label-md uppercase tracking-widest transition-colors ${
+                roleMode === r ? "text-on-surface" : "text-outline hover:text-on-surface"
+              }`}
+            >
+              <Icon name={r === "citizen" ? "person" : "policy"} className="text-[18px]" />
+              {r === "citizen" ? "Citizen" : "Agency"}
+            </button>
+          ))}
+        </motion.div>
 
-            {/* Demo credentials helper */}
-            <div className="pt-stack-sm border-t border-outline-variant/30">
-              <p className="font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest mb-stack-sm">
-                Demo Access
-              </p>
-              <div className="flex gap-stack-sm">
-                <button
-                  onClick={() => fillDemo("citizen")}
-                  className="flex-1 py-stack-sm bg-surface-container-high rounded-lg font-label-md text-[11px] text-on-surface hover:bg-surface-variant transition-colors"
-                >
-                  Citizen Demo
-                </button>
-                <button
-                  onClick={() => fillDemo("officer")}
-                  className="flex-1 py-stack-sm bg-surface-container-high rounded-lg font-label-md text-[11px] text-on-surface hover:bg-surface-variant transition-colors"
-                >
-                  Officer Demo
-                </button>
+        {/* ─── Context note ─── */}
+        <motion.div
+          variants={itemVariants}
+          className="mb-4 rounded-r-lg border-l-2 border-secondary-fixed-dim/60 bg-white/[0.03] py-2 pl-3 pr-2"
+        >
+          <p className="font-sans text-label-md text-on-surface-variant">
+            {roleMode === "citizen"
+              ? "Standard encryption active for public users. Report and track fraud attempts securely."
+              : "Authorized personnel only. Agency logins are audited and monitored."}
+          </p>
+        </motion.div>
+
+        {/* ─── Form ─── */}
+        <motion.form variants={itemVariants} className="space-y-4" onSubmit={handleSubmit}>
+          {tab === "signup" && roleMode === "citizen" && (
+            <>
+              <Field
+                label="Full Name"
+                icon="badge"
+                type="text"
+                value={name}
+                onChange={setName}
+                placeholder="Rahul Sharma"
+                required
+              />
+              <Field
+                label="Phone (optional)"
+                icon="call"
+                type="text"
+                value={phone}
+                onChange={setPhone}
+                placeholder="+91 90000 00000"
+              />
+            </>
+          )}
+          <Field
+            label={roleMode === "agency" ? "Agency Email" : "Email Address"}
+            icon="alternate_email"
+            type="email"
+            value={email}
+            onChange={setEmail}
+            placeholder="name@example.com"
+            required
+          />
+          <Field
+            label="Password"
+            icon="lock"
+            type="password"
+            value={password}
+            onChange={setPassword}
+            placeholder="••••••••"
+            required
+          />
+
+          {roleMode === "agency" && (
+            <div className="flex items-start gap-stack-sm rounded-lg border border-primary/20 bg-primary-container/10 p-stack-sm">
+              <Icon name="security_update_good" className="text-[20px] text-primary" />
+              <div>
+                <p className="font-sans text-body-md font-semibold text-primary">Multi-Factor Reminder</p>
+                <p className="font-sans text-label-md text-on-surface-variant">
+                  Agency-issued credentials required. Contact your command center for access.
+                </p>
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="bg-surface-container-lowest/50 py-stack-sm px-card-padding border-t border-outline-variant/30 flex items-center justify-center gap-1">
-            <Icon name="verified_user" className="text-tertiary text-[14px]" fill />
-            <span className="font-label-md text-on-surface-variant text-[9px] uppercase tracking-[0.2em]">
-              TLS 1.3 / AES-256 Encryption Active
+          {error && (
+            <div className="flex items-start gap-stack-sm rounded-lg border border-error/30 bg-error/10 p-stack-sm">
+              <Icon name="error" className="text-[18px] text-error" />
+              <p className="font-sans text-body-md text-error">{error}</p>
+            </div>
+          )}
+          {info && (
+            <div className="flex items-start gap-stack-sm rounded-lg border border-tertiary/30 bg-tertiary/10 p-stack-sm">
+              <Icon name="info" className="text-[18px] text-tertiary" />
+              <p className="font-sans text-body-md text-tertiary">{info}</p>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="btn-bloom mt-2 flex w-full items-center justify-center gap-3 rounded-xl py-3 font-heading uppercase tracking-tight text-on-primary-fixed transition-all active:scale-[0.98] disabled:opacity-60"
+          >
+            <Icon
+              name={submitting ? "progress_activity" : tab === "login" ? "encrypted" : "how_to_reg"}
+              className={`text-[20px] ${submitting ? "animate-spin" : ""}`}
+              fill
+            />
+            <span className="text-[18px]">
+              {submitting ? "Processing" : tab === "login" ? "Secure Login" : "Create Account"}
             </span>
+          </button>
+        </motion.form>
+
+        {/* ─── Switch tab helper ─── */}
+        <motion.div variants={itemVariants} className="mt-5 text-center">
+          <p className="font-sans text-body-sm text-outline">
+            {tab === "login" ? "New to Truvia? " : "Already registered? "}
+            <button
+              type="button"
+              onClick={() => {
+                setTab(tab === "login" ? "signup" : "login");
+                setError(null);
+                setInfo(null);
+              }}
+              className="ml-1 font-semibold text-secondary-fixed-dim underline-offset-4 transition-colors hover:underline"
+            >
+              {tab === "login" ? "Create an Account" : "Login"}
+            </button>
+          </p>
+        </motion.div>
+
+        {/* ─── Demo access ─── */}
+        <motion.div variants={itemVariants} className="mt-4 border-t border-white/5 pt-4">
+          <p className="mb-stack-sm font-sans text-[10px] uppercase tracking-widest text-outline">Demo Access</p>
+          <div className="flex gap-stack-sm">
+            <button
+              type="button"
+              onClick={() => fillDemo("citizen")}
+              className="flex-1 rounded-lg border border-white/5 bg-white/[0.03] py-2.5 font-sans text-[11px] text-on-surface transition-colors hover:border-secondary-fixed-dim/30 hover:bg-white/[0.06]"
+            >
+              Citizen Demo
+            </button>
+            <button
+              type="button"
+              onClick={() => fillDemo("officer")}
+              className="flex-1 rounded-lg border border-white/5 bg-white/[0.03] py-2.5 font-sans text-[11px] text-on-surface transition-colors hover:border-secondary-fixed-dim/30 hover:bg-white/[0.06]"
+            >
+              Officer Demo
+            </button>
           </div>
-        </div>
-      </main>
+        </motion.div>
+
+        {/* ─── TLS footer strip ─── */}
+        <motion.div
+          variants={itemVariants}
+          className="mt-5 flex items-center justify-center gap-1.5 opacity-50"
+        >
+          <Icon name="verified_user" className="text-[14px] text-tertiary" fill />
+          <span className="font-sans text-[9px] uppercase tracking-[0.2em] text-outline">
+            TLS 1.3 / AES-256 Encryption Active
+          </span>
+        </motion.div>
+      </motion.main>
     </div>
   );
 }
@@ -284,22 +347,22 @@ function Field({
   required?: boolean;
 }) {
   return (
-    <div className="space-y-1">
-      <label className="font-label-md text-on-surface-variant uppercase tracking-wider block">
+    <div className="group space-y-2">
+      <label className="block font-sans text-label-sm uppercase tracking-wider text-outline transition-colors group-focus-within:text-secondary-fixed-dim">
         {label}
       </label>
       <div className="relative">
+        <Icon
+          name={icon}
+          className="absolute left-0 top-1/2 -translate-y-1/2 text-[20px] text-outline/50 transition-colors group-focus-within:text-secondary-fixed-dim"
+        />
         <input
-          className="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg px-stack-md py-stack-sm focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none text-body-md font-mono text-on-surface placeholder-on-surface-variant/30"
+          className="input-glass w-full rounded-none bg-transparent py-3 pl-8 pr-4 font-sans text-body-md text-on-surface outline-none placeholder:text-outline/30"
           placeholder={placeholder}
           type={type}
           value={value}
           required={required}
           onChange={(e) => onChange(e.target.value)}
-        />
-        <Icon
-          name={icon}
-          className="absolute right-stack-md top-1/2 -translate-y-1/2 text-outline text-[20px]"
         />
       </div>
     </div>

@@ -4,17 +4,17 @@ import { useMemo } from "react";
 import type { GraphNode, GraphEdge } from "@/lib/types";
 
 const TYPE_COLOR: Record<string, string> = {
-  phone: "#c1c1ff",
-  upi: "#edc221",
-  domain: "#adaefe",
-  email: "#908fa0",
-  ip: "#5d5fef",
-  device: "#c1c1ff",
+  phone: "#b5c4ff",
+  upi: "#ffb787",
+  domain: "#658aff",
+  email: "#8d90a0",
+  ip: "#00f4fe",
+  device: "#00dce5",
 };
 
 function colorForNode(n: GraphNode): string {
   if (n.risk_score >= 80) return "#ffb4ab";
-  return TYPE_COLOR[n.type] ?? "#c1c1ff";
+  return TYPE_COLOR[n.type] ?? "#b5c4ff";
 }
 
 interface Positioned extends GraphNode {
@@ -112,8 +112,8 @@ export function GraphView({
     <svg className="w-full h-full" viewBox={viewBox} preserveAspectRatio="xMidYMid meet">
       <defs>
         <linearGradient id="edgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#5d5fef" stopOpacity="0.5" />
-          <stop offset="100%" stopColor="#c1c1ff" stopOpacity="0.3" />
+          <stop offset="0%" stopColor="#00f4fe" stopOpacity="0.5" />
+          <stop offset="100%" stopColor="#00dce5" stopOpacity="0.3" />
         </linearGradient>
       </defs>
       {edges.map((e, i) => {
@@ -157,7 +157,7 @@ export function GraphView({
                 x={n.x}
                 y={n.y + n.r + 12}
                 textAnchor="middle"
-                fill="#c7c4d7"
+                fill="#c3c5d7"
                 fontSize="10"
                 fontFamily="JetBrains Mono, monospace"
               >

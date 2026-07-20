@@ -1,12 +1,32 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { PageLoader } from "@/components/AppShell";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { PredictiveAlert, PublicAlert, GraphOverview, GraphNode } from "@/lib/types";
 import { severityBadge, severityText } from "@/lib/format";
+
+// Left border accent per severity tier (Obsidian Glass semantic colors).
+function borderAccent(sev?: string): string {
+  switch ((sev || "").toLowerCase()) {
+    case "critical":
+      return "border-l-error";
+    case "high":
+      return "border-l-tertiary";
+    default:
+      return "border-l-secondary-container";
+  }
+}
+
+// Map a 0–100 risk score to a severity tier for the blocklist chips.
+function riskTier(score: number): string {
+  if (score >= 80) return "critical";
+  if (score >= 50) return "high";
+  return "moderate";
+}
 
 export default function AlertsPage() {
   const { user } = useAuth();
@@ -47,236 +67,216 @@ export default function AlertsPage() {
     })();
   }, [isOfficer]);
 
+  const reduce = useReducedMotion();
+  const listVariants: Variants = {
+    hidden: {},
+    show: { transition: { staggerChildren: reduce ? 0 : 0.06 } },
+  };
+  const rowVariants: Variants = reduce
+    ? { hidden: { opacity: 1 }, show: { opacity: 1 } }
+    : {
+        hidden: { opacity: 0, y: 14 },
+        show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
+      };
+  const panelVariants: Variants = reduce
+    ? { hidden: { opacity: 1 }, show: { opacity: 1 } }
+    : {
+        hidden: { opacity: 0, y: 20 },
+        show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: "easeOut" } },
+      };
+
   if (loading) return <PageLoader />;
 
   const activeCount = predictive.length + publicAlerts.length;
+  const feedTitle = isOfficer ? "Predictive Threat Feed" : "Public Safety Advisories";
 
   return (
-    <div className="p-gutter space-y-gutter">
+    <div className="relative p-gutter space-y-gutter">
+      {/* Void background */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_18%_-5%,rgba(101,138,255,0.10),transparent_55%),radial-gradient(circle_at_100%_105%,rgba(0,244,254,0.07),transparent_50%)]"
+      />
+
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-stack-md">
-        <div className="flex items-center gap-stack-sm">
-          <span className="font-label-md bg-error/20 text-error px-stack-sm py-1 rounded">LIVE FEED</span>
-          <span className="text-body-md text-on-surface-variant flex items-center gap-stack-sm">
-            <span className="w-2 h-2 bg-error rounded-full inline-block animate-pulse" />
-            {activeCount} Active Advisories
+        <div className="flex items-center gap-stack-md">
+          <span className="font-mono text-label-sm bg-error/20 text-error px-stack-sm py-1 rounded flex items-center gap-stack-sm uppercase">
+            <span className="w-2 h-2 rounded-full bg-error pulse inline-block" />
+            Live Feed
           </span>
+          <h1 className="font-heading text-headline-md text-on-surface">Alerts Center</h1>
         </div>
+        <span className="text-body-md text-on-surface-variant flex items-center gap-stack-sm">
+          <span className="w-2 h-2 bg-secondary-container rounded-full inline-block pulse" />
+          {activeCount} Active {activeCount === 1 ? "Advisory" : "Advisories"}
+        </span>
       </div>
 
       <div className="grid grid-cols-12 gap-gutter">
-        {/* Critical / Predictive feed */}
-        <div className="col-span-12 lg:col-span-8 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
-          <div className="px-stack-md py-stack-md border-b border-outline-variant flex items-center justify-between">
-            <div className="flex items-center gap-stack-sm">
+        {/* LEFT — Main feed */}
+        <motion.section
+          variants={panelVariants}
+          initial="hidden"
+          animate="show"
+          className="col-span-12 lg:col-span-8 glass-panel overflow-hidden flex flex-col"
+        >
+          <div className="px-card-padding py-stack-md border-b border-white/[0.06] flex items-center gap-stack-sm">
+            <div className="w-9 h-9 rounded-lg bg-error/15 border border-error/25 flex items-center justify-center">
               <Icon name="campaign" className="text-error" />
-              <h3 className="font-headline-sm text-[16px]">
-                {isOfficer ? "Predictive Threat Feed" : "Public Safety Advisories"}
-              </h3>
             </div>
+            <h3 className="font-heading text-headline-sm text-on-surface">{feedTitle}</h3>
           </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
+
+          <motion.div
+            variants={listVariants}
+            initial="hidden"
+            animate="show"
+            className="flex-1 overflow-y-auto custom-scrollbar divide-y divide-white/[0.04]"
+          >
+            {/* Predictive alerts (officers) */}
             {isOfficer &&
               predictive.map((a, i) => (
-                <div
+                <motion.article
                   key={`p-${i}`}
-                  className="p-stack-md border-b border-outline-variant hover:bg-surface-container-high/50 transition-colors relative"
+                  variants={rowVariants}
+                  className={`flex gap-stack-md p-stack-md border-l-4 ${borderAccent(
+                    a.severity
+                  )} hover:bg-white/[0.03] transition-colors`}
                 >
-                  <div
-                    className={`absolute left-0 top-0 bottom-0 w-1 ${
-                      a.severity === "critical" ? "bg-error" : a.severity === "high" ? "bg-tertiary" : "bg-secondary"
-                    }`}
-                  />
-                  <div className="flex justify-between items-start mb-1">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-white/[0.04] border border-outline-variant/40 flex items-center justify-center">
+                    <Icon name="trending_up" className={severityText(a.severity)} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start gap-stack-sm mb-1">
+                      <span
+                        className={`font-mono text-label-sm px-1.5 py-0.5 rounded uppercase ${severityBadge(
+                          a.severity
+                        )}`}
+                      >
+                        {a.severity}
+                      </span>
+                      <span className="font-mono text-body-sm text-on-surface-variant whitespace-nowrap">
+                        +{a.velocity_metric.trend_percentage}% · {a.velocity_metric.count_14d}/14d
+                      </span>
+                    </div>
+                    <h4 className="font-heading text-body-lg font-semibold text-on-surface mb-1">{a.title}</h4>
+                    <p className="text-body-md text-on-surface-variant">{a.description}</p>
+                  </div>
+                </motion.article>
+              ))}
+
+            {/* Public advisories (everyone) */}
+            {publicAlerts.map((a) => (
+              <motion.article
+                key={a.id}
+                variants={rowVariants}
+                className={`flex gap-stack-md p-stack-md border-l-4 ${borderAccent(
+                  a.severity
+                )} hover:bg-white/[0.03] transition-colors`}
+              >
+                <div className="shrink-0 w-10 h-10 rounded-lg bg-white/[0.04] border border-outline-variant/40 flex items-center justify-center">
+                  <Icon name="warning" className={severityText(a.severity)} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start gap-stack-sm mb-1">
                     <span
-                      className={`font-label-md px-1.5 py-0.5 rounded text-[10px] uppercase ${severityBadge(
+                      className={`font-mono text-label-sm px-1.5 py-0.5 rounded uppercase ${severityBadge(
                         a.severity
                       )}`}
                     >
                       {a.severity}
                     </span>
-                    <span className="font-label-md text-[12px] text-on-surface-variant">
-                      +{a.velocity_metric.trend_percentage}% • {a.velocity_metric.count_14d}/14d
-                    </span>
+                    <span className="font-mono text-body-sm text-on-surface-variant whitespace-nowrap">{a.date}</span>
                   </div>
-                  <h4 className="font-headline-sm text-[16px] text-on-surface mb-1">{a.title}</h4>
+                  <h4 className="font-heading text-body-lg font-semibold text-on-surface mb-1">{a.title}</h4>
                   <p className="text-body-md text-on-surface-variant">{a.description}</p>
                 </div>
-              ))}
-
-            {/* Public advisories (shown to everyone) */}
-            {publicAlerts.map((a) => (
-              <div
-                key={a.id}
-                className="p-stack-md border-b border-outline-variant hover:bg-surface-container-high/50 transition-colors relative"
-              >
-                <div
-                  className={`absolute left-0 top-0 bottom-0 w-1 ${
-                    a.severity === "critical" ? "bg-error" : "bg-tertiary"
-                  }`}
-                />
-                <div className="flex justify-between items-start mb-1">
-                  <span
-                    className={`font-label-md px-1.5 py-0.5 rounded text-[10px] uppercase ${severityBadge(
-                      a.severity
-                    )}`}
-                  >
-                    {a.severity}
-                  </span>
-                  <span className="font-label-md text-[12px] text-on-surface-variant">{a.date}</span>
-                </div>
-                <h4 className="font-headline-sm text-[16px] text-on-surface mb-1">{a.title}</h4>
-                <p className="text-body-md text-on-surface-variant">{a.description}</p>
-              </div>
+              </motion.article>
             ))}
 
             {activeCount === 0 && (
-              <p className="p-6 text-center font-body-md text-on-surface-variant">No active advisories.</p>
-            )}
-          </div>
-        </div>
-
-        {/* Right: fraud rings + timeline */}
-        <div className="col-span-12 lg:col-span-4 space-y-gutter">
-          {isOfficer && (
-            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-card-padding">
-              <div className="flex items-center gap-stack-sm mb-stack-md">
-                <Icon name="hub" className="text-primary" />
-                <h3 className="font-headline-sm text-[16px]">Fraud Rings</h3>
-              </div>
-              <div className="flex items-center justify-center py-stack-md">
-                <div className="relative w-32 h-32 flex items-center justify-center">
-                  <div className="absolute w-20 h-20 border border-error/30 rounded-full animate-ping" />
-                  <div className="w-16 h-16 bg-error/80 rounded-full flex flex-col items-center justify-center text-on-error shadow-lg">
-                    <span className="text-headline-sm font-bold">{ringCount}</span>
-                    <span className="text-[9px] uppercase">clusters</span>
-                  </div>
+              <div className="flex flex-col items-center justify-center gap-stack-sm py-16 px-stack-md text-center">
+                <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-outline-variant/40 flex items-center justify-center">
+                  <Icon name="notifications_off" className="text-on-surface-variant text-[28px]" />
                 </div>
+                <p className="font-heading text-body-lg text-on-surface">No trending alerts right now</p>
+                <p className="text-body-md text-on-surface-variant max-w-sm">
+                  The feed is quiet. New advisories will appear here as soon as they are detected.
+                </p>
               </div>
-              <p className="text-[12px] text-on-surface-variant text-center leading-tight">
-                Connected-component clusters detected across the entity graph.
-              </p>
-            </div>
-          )}
+            )}
+          </motion.div>
+        </motion.section>
 
-          {/* Timeline of advisories */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
-            <div className="px-stack-md py-stack-md border-b border-outline-variant">
-              <h3 className="font-headline-sm text-[16px] flex items-center gap-stack-sm">
-                <Icon name="history" />
-                Notification Timeline
-              </h3>
-            </div>
-            <div className="p-stack-md">
-              <div className="space-y-stack-md relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1px] before:bg-outline-variant/50">
-                {[...predictive, ...publicAlerts].slice(0, 6).map((a, i) => {
-                  const title = "title" in a ? a.title : "";
-                  const sev = a.severity;
-                  return (
-                    <div key={i} className="relative pl-8">
-                      <div
-                        className={`absolute left-0 top-1 w-[24px] h-[24px] bg-background border rounded-full flex items-center justify-center z-10 ${
-                          sev === "critical" ? "border-error" : "border-primary"
-                        }`}
-                      >
-                        <div
-                          className={`w-1.5 h-1.5 rounded-full ${sev === "critical" ? "bg-error" : "bg-primary"}`}
-                        />
-                      </div>
-                      <p className={`text-body-md font-bold ${severityText(sev)}`}>{title}</p>
-                      <p className="text-[11px] text-on-surface-variant uppercase font-label-md">{sev} priority</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* High-risk blocklist (officer) */}
+        {/* RIGHT — High-risk blocklist (officers only) */}
         {isOfficer && (
-          <div className="col-span-12 lg:col-span-6 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col max-h-[400px]">
-            <div className="px-stack-md py-stack-md border-b border-outline-variant">
-              <h3 className="font-headline-sm text-[16px] flex items-center gap-stack-sm">
-                <Icon name="block" />
-                High Risk Blocklist
-              </h3>
+          <motion.section
+            variants={panelVariants}
+            initial="hidden"
+            animate="show"
+            className="col-span-12 lg:col-span-4 glass-panel overflow-hidden flex flex-col"
+          >
+            <div className="px-card-padding py-stack-md border-b border-white/[0.06] flex items-center gap-stack-sm">
+              <div className="w-9 h-9 rounded-lg bg-primary/15 border border-primary/25 flex items-center justify-center">
+                <Icon name="block" className="text-primary" />
+              </div>
+              <h3 className="font-heading text-headline-sm text-on-surface">High-Risk Blocklist</h3>
             </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
-              <table className="w-full text-left border-collapse">
-                <thead className="sticky top-0 bg-surface-container-low z-10">
-                  <tr>
-                    {["Identifier", "Type", "Score"].map((h) => (
-                      <th
-                        key={h}
-                        className="px-stack-md py-stack-sm font-label-md text-on-surface-variant text-[10px] uppercase border-b border-outline-variant"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {blocklist.map((n) => (
-                    <tr key={n.id} className="hover:bg-surface-container-high transition-colors">
-                      <td className="px-stack-md py-stack-sm font-mono text-[12px] max-w-[180px] truncate">
-                        {n.label}
-                      </td>
-                      <td className="px-stack-md py-stack-sm text-[11px] capitalize">{n.type}</td>
-                      <td className="px-stack-md py-stack-sm">
-                        <span className="bg-error/10 text-error px-1.5 rounded font-bold text-xs">
-                          {Math.round(n.risk_score)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {blocklist.length === 0 && (
-                    <tr>
-                      <td colSpan={3} className="p-4 text-center text-on-surface-variant text-[12px]">
-                        No entities in blocklist.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
 
-        {/* Trending scam scripts */}
-        <div
-          className={`col-span-12 ${
-            isOfficer ? "lg:col-span-6" : "lg:col-span-12"
-          } bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col max-h-[400px]`}
-        >
-          <div className="px-stack-md py-stack-md border-b border-outline-variant flex items-center justify-between">
-            <h3 className="font-headline-sm text-[16px] flex items-center gap-stack-sm">
-              <Icon name="terminal" className="text-tertiary" />
-              Trending Scam Scripts
-            </h3>
-          </div>
-          <div className="p-stack-md space-y-stack-md overflow-y-auto custom-scrollbar">
-            {(isOfficer ? predictive : publicAlerts).slice(0, 4).map((a, i) => {
-              const title = a.title;
-              return (
-                <div key={i} className="p-stack-sm bg-surface-container rounded border border-outline-variant">
-                  <div className="flex justify-between items-center mb-unit">
-                    <span className="font-label-md text-[12px] text-on-surface uppercase">{title}</span>
-                    <span className={`text-[10px] font-bold ${severityText(a.severity)}`}>
-                      {a.severity.toUpperCase()}
-                    </span>
+            {/* Detected fraud ring count */}
+            <div className="px-card-padding py-stack-md border-b border-white/[0.06] flex items-center gap-stack-md">
+              <div className="shrink-0 w-12 h-12 rounded-xl bg-error/15 border border-error/30 flex flex-col items-center justify-center pulse">
+                <span className="font-heading text-headline-sm text-error leading-none">{ringCount}</span>
+              </div>
+              <div className="min-w-0">
+                <p className="font-heading text-body-lg text-on-surface">Fraud rings detected</p>
+                <p className="text-body-sm text-on-surface-variant leading-snug">
+                  Connected-component clusters across the entity graph.
+                </p>
+              </div>
+            </div>
+
+            <motion.div
+              variants={listVariants}
+              initial="hidden"
+              animate="show"
+              className="flex-1 overflow-y-auto custom-scrollbar divide-y divide-white/[0.04]"
+            >
+              {blocklist.map((n) => (
+                <motion.div
+                  key={n.id}
+                  variants={rowVariants}
+                  className="flex items-center gap-stack-md px-card-padding py-stack-sm hover:bg-white/[0.03] transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-mono text-body-sm text-on-surface truncate">{n.label}</p>
+                    <p className="text-label-sm uppercase text-on-surface-variant capitalize">{n.type}</p>
                   </div>
-                  <div className="bg-black/80 text-[#50FA7B] p-stack-sm font-mono text-[11px] rounded border border-outline-variant/30">
-                    &quot;{a.description.slice(0, 120)}...&quot;
+                  <span
+                    className={`font-mono text-label-sm px-2 py-0.5 rounded ${severityBadge(
+                      riskTier(n.risk_score)
+                    )}`}
+                  >
+                    {Math.round(n.risk_score)}
+                  </span>
+                </motion.div>
+              ))}
+
+              {blocklist.length === 0 && (
+                <div className="flex flex-col items-center justify-center gap-stack-sm py-14 px-stack-md text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-white/[0.04] border border-outline-variant/40 flex items-center justify-center">
+                    <Icon name="shield" className="text-on-surface-variant" />
                   </div>
+                  <p className="font-heading text-body-md text-on-surface">No entities in blocklist</p>
+                  <p className="text-body-sm text-on-surface-variant max-w-[220px]">
+                    High-risk identifiers will surface here as the graph grows.
+                  </p>
                 </div>
-              );
-            })}
-            {(isOfficer ? predictive : publicAlerts).length === 0 && (
-              <p className="text-center text-on-surface-variant text-[12px]">No trending scripts.</p>
-            )}
-          </div>
-        </div>
+              )}
+            </motion.div>
+          </motion.section>
+        )}
       </div>
     </div>
   );

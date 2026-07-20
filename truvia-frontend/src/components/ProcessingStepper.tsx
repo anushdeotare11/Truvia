@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { Icon } from "@/components/Icon";
 
 type PipelineStage =
@@ -30,18 +31,18 @@ function getStageIndex(stage: string | null): number {
 
 export function ProcessingStepper({ stage }: ProcessingStepperProps) {
   const activeIndex = getStageIndex(stage);
+  const isDone = stage === "completed";
+  const current = activeIndex >= 0 ? STAGES[activeIndex] : null;
 
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-0 w-full">
-      {STAGES.map((s, i) => {
-        const isCompleted = activeIndex > i || (stage === "completed" && i === STAGES.length - 1);
-        const isActive = activeIndex === i && stage !== "completed";
-
-        return (
-          <div key={s.key} className="flex items-center flex-1 w-full sm:w-auto">
-            {/* Step indicator + label */}
-            <div className="flex items-center gap-2 min-w-0">
-              {/* Icon / number indicator */}
+    <div className="w-full">
+      {/* Icon rail — fixed icons, flexible connectors (never overflows) */}
+      <div className="flex items-center w-full">
+        {STAGES.map((s, i) => {
+          const isCompleted = activeIndex > i || (isDone && i === STAGES.length - 1);
+          const isActive = activeIndex === i && !isDone;
+          return (
+            <Fragment key={s.key}>
               <div
                 className={`relative flex items-center justify-center w-8 h-8 rounded-full shrink-0 ${
                   isCompleted
@@ -55,7 +56,6 @@ export function ProcessingStepper({ stage }: ProcessingStepperProps) {
                   <Icon name="check" className="text-primary text-[18px]" />
                 ) : isActive ? (
                   <>
-                    {/* Pulse ring */}
                     <span className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
                     <Icon name={s.icon} className="text-primary text-[18px] relative z-10" />
                   </>
@@ -63,32 +63,24 @@ export function ProcessingStepper({ stage }: ProcessingStepperProps) {
                   <Icon name={s.icon} className="text-on-surface-variant/50 text-[18px]" />
                 )}
               </div>
+              {i < STAGES.length - 1 && (
+                <div
+                  className={`flex-1 h-px mx-1.5 sm:mx-2 min-w-[6px] ${
+                    activeIndex > i ? "bg-primary/40" : "bg-outline-variant/30"
+                  }`}
+                />
+              )}
+            </Fragment>
+          );
+        })}
+      </div>
 
-              {/* Label */}
-              <span
-                className={`text-body-sm whitespace-nowrap ${
-                  isCompleted
-                    ? "text-primary"
-                    : isActive
-                    ? "text-on-surface font-medium"
-                    : "text-on-surface-variant/50"
-                }`}
-              >
-                {s.label}
-              </span>
-            </div>
-
-            {/* Connector line (hidden for last item) */}
-            {i < STAGES.length - 1 && (
-              <div
-                className={`hidden sm:block flex-1 h-px mx-3 ${
-                  activeIndex > i ? "bg-primary/40" : "bg-outline-variant/30"
-                }`}
-              />
-            )}
-          </div>
-        );
-      })}
+      {/* Single centered status label */}
+      <p className="mt-3 text-center text-body-sm">
+        <span className={isDone ? "text-primary font-medium" : "text-on-surface font-medium"}>
+          {current ? (isDone ? current.label : `${current.label}…`) : "Preparing…"}
+        </span>
+      </p>
     </div>
   );
 }

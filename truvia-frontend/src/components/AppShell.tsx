@@ -43,7 +43,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-stack-md">
-          <div className="w-12 h-12 rounded-full border-2 border-primary-container border-t-primary animate-spin" />
+          <div className="w-12 h-12 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
           <span className="font-label-md text-on-surface-variant uppercase tracking-widest text-[11px]">
             Authenticating
           </span>
@@ -67,7 +67,7 @@ export function PageLoader() {
   return (
     <div className="flex items-center justify-center py-stack-lg">
       <div className="flex items-center gap-stack-md text-on-surface-variant">
-        <Icon name="progress_activity" className="animate-spin text-primary" />
+        <Icon name="progress_activity" className="animate-spin text-accent" />
         <span className="font-label-md uppercase tracking-widest text-[11px]">Loading</span>
       </div>
     </div>

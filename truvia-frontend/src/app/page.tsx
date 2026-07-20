@@ -1,264 +1,414 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  motion,
+  useScroll,
+  useSpring,
+  useTransform,
+  useMotionValue,
+  useInView,
+  animate,
+  type Variants,
+} from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { useAuth } from "@/lib/auth";
 import { homeForRole } from "@/lib/nav";
 
+const EASE = [0.22, 1, 0.36, 1] as const;
+const BLUE = "#4da2ff";
+
+const NAV = [
+  { label: "Modules", href: "#modules" },
+  { label: "Capabilities", href: "#features" },
+  { label: "Protocol", href: "#how-it-works" },
+];
+
+const MODULES = [
+  { icon: "shield_with_heart", tag: "For Citizens", title: "Citizen Fraud Shield", body: "Upload a suspicious screenshot, call recording, or message and receive an explainable threat verdict in seconds — with the exact red flags and the safe next step." },
+  { icon: "dashboard", tag: "For Law Enforcement", title: "Intelligence Dashboard", body: "A command-center view of complaint volume, emerging scam velocity, and case depth — replacing manual spreadsheet triage with live signal." },
+  { icon: "hub", tag: "For Analysts", title: "Threat Intelligence Engine", body: "A continuously-growing fraud graph that links entities across complaints, surfaces rings via community detection, and ranks high-risk actors." },
+];
+
 const FEATURES = [
-  {
-    icon: "insights",
-    title: "Cognitive Threat Mapping",
-    body: "Neural analysis of multi-source intelligence identifies emerging fraud vectors in real-time.",
-  },
-  {
-    icon: "hub",
-    title: "Cross-Agency Sync",
-    body: "Encrypted channels for seamless inter-departmental collaboration and tactical data sharing.",
-  },
-  {
-    icon: "verified_user",
-    title: "Citizen Protocol",
-    body: "Automated personal defense layers intercept and neutralize digital fraud before it reaches you.",
-  },
+  { icon: "insights", title: "Cognitive Threat Mapping", body: "Neural analysis of multi-source intelligence identifies emerging fraud vectors in real-time." },
+  { icon: "graph_3", title: "Entity Correlation Graph", body: "Every report is decomposed into entities and linked into a persistent, queryable fraud network." },
+  { icon: "verified_user", title: "Explainable Verdicts", body: "Every score ships with plain-language reasoning and cited RBI / CERT-In / MHA guidance." },
+  { icon: "bolt", title: "Pre-Transaction Defense", body: "Real-time scoring during an active scam interaction — intervention before the money moves." },
+  { icon: "description", title: "Court-Ready Packages", body: "Structured, evidentiary intelligence dossiers generated in one click for case escalation." },
+  { icon: "trending_up", title: "Predictive Velocity", body: "Rolling complaint-velocity detection flags emerging scam categories before they spike." },
 ];
 
 const STEPS = [
-  { n: "01", title: "Data Ingestion", body: "Heterogeneous data normalization from screenshots, audio, and text evidence." },
-  { n: "02", title: "Heuristic Analysis", body: "Autonomous pattern recognition engines identify micro-anomalies and scam markers." },
-  { n: "03", title: "Tactical Alert", body: "High-fidelity intelligence delivered with evidentiary verification to relevant operators." },
+  { n: "01", title: "Data Ingestion", body: "Heterogeneous evidence — screenshots, audio, and text — normalized by the Input Processing agent." },
+  { n: "02", title: "Heuristic Analysis", body: "Threat scoring, entity extraction, and graph correlation run across coordinated AI agents." },
+  { n: "03", title: "Tactical Intelligence", body: "High-fidelity verdicts and court-ready packages delivered to citizens and operators." },
 ];
 
 const METRICS = [
-  { label: "Reports Analyzed", value: "150K+" },
-  { label: "Threats Neutralized", value: "4.2M+" },
-  { label: "Avg Latency", value: "0.8s" },
-  { label: "Integrity Index", value: "99.9%" },
+  { label: "Reports Analyzed", to: 150, decimals: 0, suffix: "K+" },
+  { label: "Threats Neutralized", to: 4.2, decimals: 1, suffix: "M+" },
+  { label: "Avg Latency", to: 0.8, decimals: 1, suffix: "s" },
+  { label: "Integrity Index", to: 99.9, decimals: 1, suffix: "%" },
 ];
+
+function CountUp({ to, decimals = 0, suffix = "" }: { to: number; decimals?: number; suffix?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-40px" });
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (!inView) return;
+    const controls = animate(0, to, { duration: 1.6, ease: "easeOut", onUpdate: (v: number) => setVal(v) });
+    return () => controls.stop();
+  }, [inView, to]);
+  return (
+    <span ref={ref}>
+      {val.toFixed(decimals)}
+      {suffix}
+    </span>
+  );
+}
+
+function Reveal({ children, delay = 0, y = 28, className = "" }: { children: React.ReactNode; delay?: number; y?: number; className?: string }) {
+  return (
+    <motion.div
+      className={className}
+      initial={{ opacity: 0, y, filter: "blur(8px)" }}
+      whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.75, delay, ease: EASE }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+const containerStagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.09 } } };
+const itemUp: Variants = {
+  hidden: { opacity: 0, y: 30, filter: "blur(6px)" },
+  show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.7, ease: EASE } },
+};
 
 export default function LandingPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const [bannerOpen, setBannerOpen] = useState(true);
 
   useEffect(() => {
-    if (!loading && user) {
-      router.replace(homeForRole(user.role));
-    }
+    if (!loading && user) router.replace(homeForRole(user.role));
   }, [loading, user, router]);
 
-  return (
-    <div className="bg-background text-on-background min-h-screen">
-      {/* Top Nav */}
-      <nav className="fixed top-0 left-0 w-full h-header-height bg-surface-container-lowest/80 backdrop-blur-md border-b border-outline-variant z-50 flex items-center justify-between px-stack-lg lg:px-margin-page">
-        <div className="flex items-center gap-stack-sm">
-          <span className="text-headline-md font-extrabold text-primary tracking-tighter">TRUVIA</span>
-          <span className="font-label-md text-[10px] text-on-surface-variant ml-stack-sm uppercase tracking-[0.2em] border-l border-outline-variant pl-stack-sm hidden sm:block">
-            Command Center
-          </span>
-        </div>
-        <div className="hidden md:flex items-center gap-stack-lg">
-          <a className="font-label-md text-on-surface-variant hover:text-primary transition-colors" href="#features">MODULES</a>
-          <a className="font-label-md text-on-surface-variant hover:text-primary transition-colors" href="#how-it-works">PROTOCOLS</a>
-        </div>
-        <Link
-          href="/auth"
-          className="bg-primary-container text-white px-stack-md py-stack-sm font-label-md rounded hover:brightness-110 transition-all active:scale-[0.98]"
-        >
-          OPERATOR LOGIN
-        </Link>
-      </nav>
+  // Hero mouse parallax
+  const mx = useMotionValue(0);
+  const my = useMotionValue(0);
+  const sx = useSpring(mx, { stiffness: 60, damping: 16 });
+  const sy = useSpring(my, { stiffness: 60, damping: 16 });
+  const rotateY = useTransform(sx, [-0.5, 0.5], [7, -7]);
+  const rotateX = useTransform(sy, [-0.5, 0.5], [-5, 5]);
 
-      <main className="pt-header-height">
-        {/* Hero */}
-        <section className="relative min-h-[720px] flex items-center overflow-hidden hero-gradient">
-          <div
-            className="absolute inset-0 opacity-[0.03]"
-            style={{
-              backgroundImage:
-                "linear-gradient(#c1c1ff 1px, transparent 1px), linear-gradient(90deg, #c1c1ff 1px, transparent 1px)",
-              backgroundSize: "32px 32px",
-            }}
-          />
-          <div className="container mx-auto px-stack-lg lg:px-margin-page grid grid-cols-1 lg:grid-cols-2 gap-stack-lg relative z-10">
-            <div className="flex flex-col justify-center space-y-stack-md">
-              <div className="inline-flex items-center gap-stack-sm bg-primary-container/20 border border-primary-container/40 px-stack-sm py-1 rounded w-fit">
-                <Icon name="terminal" className="text-primary text-[16px]" fill />
-                <span className="font-label-md text-[11px] text-primary-fixed-dim uppercase tracking-wider">
-                  System Status: Active
+  function handleHeroMove(e: React.MouseEvent<HTMLDivElement>) {
+    const r = e.currentTarget.getBoundingClientRect();
+    mx.set((e.clientX - r.left) / r.width - 0.5);
+    my.set((e.clientY - r.top) / r.height - 0.5);
+  }
+
+  return (
+    <div className="bg-background text-on-surface min-h-screen overflow-x-hidden">
+      {/* ============ FIXED HEADER (banner + nav) ============ */}
+      <div className="fixed top-0 left-0 w-full z-50">
+        {bannerOpen && (
+          <div className="h-10 bg-primary-container flex items-center justify-center relative px-stack-lg">
+            <span className="text-[13px] font-medium text-on-primary-container text-center">
+              Truvia is live for the ET AI Hackathon 2026 &raquo;
+            </span>
+            <button
+              onClick={() => setBannerOpen(false)}
+              aria-label="Dismiss announcement"
+              className="absolute right-stack-md top-1/2 -translate-y-1/2 text-on-primary-container/80 hover:text-on-primary-container transition-colors"
+            >
+              <Icon name="close" className="text-[18px]" />
+            </button>
+          </div>
+        )}
+        <nav className="h-header-height bg-background/80 backdrop-blur-xl border-b border-white/10 flex items-center justify-between px-stack-lg lg:px-margin-page">
+          <div className="flex items-center gap-stack-sm">
+            <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center neon-glow">
+              <Icon name="shield_lock" className="text-primary text-[18px]" fill />
+            </div>
+            <span className="text-headline-md font-heading font-extrabold text-on-surface tracking-tight">Truvia</span>
+          </div>
+          <div className="hidden md:flex items-center gap-stack-lg absolute left-1/2 -translate-x-1/2">
+            {NAV.map((n) => (
+              <a
+                key={n.href}
+                href={n.href}
+                className="group flex items-center gap-2 text-[14px] text-on-surface-variant hover:text-secondary-container transition-colors"
+              >
+                {n.label}
+                <span className="w-4 h-4 rounded-[4px] border border-white/20 flex items-center justify-center text-[11px] leading-none text-white/50 group-hover:border-secondary-container group-hover:text-secondary-container transition-colors">
+                  +
                 </span>
-              </div>
-              <h1 className="text-white text-[44px] lg:text-[60px] leading-[1.05] font-extrabold tracking-tight">
-                Next-Gen{" "}
-                <span className="text-primary drop-shadow-[0_0_15px_rgba(193,193,255,0.3)]">
-                  Public Safety
-                </span>{" "}
-                Intelligence
-              </h1>
-              <p className="font-body-lg text-on-surface-variant max-w-xl leading-relaxed">
-                Deploying AI-powered predictive analytics to empower law enforcement and establishing an
-                unbreachable digital shield for citizen fraud protection.
-              </p>
-              <div className="flex flex-wrap gap-stack-md pt-stack-md">
+              </a>
+            ))}
+          </div>
+          <Link
+            href="/auth"
+            className="btn-primary btn-shimmer btn-shine btn-sm rounded-lg"
+          >
+            Get started
+          </Link>
+        </nav>
+      </div>
+
+      <main style={{ paddingTop: bannerOpen ? 104 : 64 }}>
+        {/* ============ HERO ============ */}
+        <section
+          onMouseMove={handleHeroMove}
+          className="bg-background relative min-h-[92svh] flex items-center overflow-hidden px-stack-lg"
+        >
+          <div className="absolute inset-0 grid-overlay opacity-60" />
+          <div className="absolute inset-0 noise-overlay" />
+
+          <div className="container mx-auto px-stack-lg lg:px-margin-page grid grid-cols-1 lg:grid-cols-2 gap-stack-lg items-center relative z-10">
+            {/* LEFT: copy */}
+            <div className="flex flex-col justify-center space-y-stack-md py-stack-lg">
+              <motion.h1
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, ease: EASE }}
+                className="text-on-surface text-[40px] sm:text-[52px] lg:text-[60px] font-heading font-extrabold leading-[1.05] tracking-tight"
+              >
+                See the fraud
+                <br />
+                <span className="bg-gradient-to-r from-primary to-secondary-container bg-clip-text text-transparent">before it sees you.</span>
+              </motion.h1>
+
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, delay: 0.2, ease: EASE }}
+                className="text-on-surface-variant text-[17px] lg:text-[19px] max-w-xl leading-relaxed"
+              >
+                Truvia turns unstructured complaints into structured, explainable, court-ready
+                intelligence — a continuously-learning threat graph that stops fraud before the transfer.
+              </motion.p>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, delay: 0.35, ease: EASE }}
+                className="flex flex-wrap gap-stack-md pt-stack-sm"
+              >
                 <Link
                   href="/auth"
-                  className="bg-primary text-on-primary px-stack-lg py-stack-md font-headline-sm text-[16px] rounded flex items-center gap-stack-sm hover:shadow-[0_0_20px_rgba(193,193,255,0.4)] transition-all"
+                  className="btn-bloom btn-shimmer text-on-primary-container font-heading font-semibold rounded-xl px-6 py-3 inline-flex items-center gap-2"
                 >
                   <Icon name="shield_with_heart" />
-                  Citizen Shield
+                  Launch Citizen Shield
                 </Link>
                 <Link
                   href="/auth"
-                  className="border border-outline text-on-surface px-stack-lg py-stack-md font-headline-sm text-[16px] rounded hover:bg-surface-bright/10 transition-all flex items-center gap-stack-sm"
+                  className="btn-shimmer inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-white/10 bg-white/5 text-on-surface hover:border-secondary-container/40 hover:text-secondary-container transition-colors"
                 >
-                  <Icon name="security" className="text-primary" />
+                  <Icon name="security" />
                   Agency Access
                 </Link>
-              </div>
+              </motion.div>
             </div>
-            <div className="hidden lg:flex items-center justify-center relative">
-              <div className="absolute w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px] -z-10" />
-              <div className="relative w-full max-w-xl glowing-border bg-surface-container-lowest rounded-xl overflow-hidden shadow-2xl">
-                <div className="h-8 bg-surface-container-high border-b border-outline-variant flex items-center px-stack-md gap-stack-sm">
-                  <div className="flex gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-error/40" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-tertiary/40" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-primary/40" />
+
+            {/* RIGHT: live console */}
+            <div className="flex justify-center lg:justify-end" style={{ perspective: 1200 }}>
+              <motion.div
+                style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
+                initial={{ opacity: 0, scale: 0.94, y: 40 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ duration: 0.9, delay: 0.3, ease: EASE }}
+                className="relative w-full max-w-2xl"
+              >
+                <div className="absolute -inset-8 bg-primary/20 rounded-[32px] blur-[100px] -z-10" />
+                <div className="relative rounded-2xl overflow-hidden shadow-2xl primary-glow obsidian-panel float-slow">
+                  <div className="scan-line" />
+                  <div className="h-9 bg-black/40 border-b border-white/10 flex items-center px-stack-md gap-stack-sm">
+                    <div className="flex gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]/60" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#febc2e]/60" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-primary/60" />
+                    </div>
+                    <div className="mx-auto font-mono text-[10px] text-primary/70 tracking-widest">
+                      TRUVIA · THREAT_INTEL_LIVE
+                    </div>
                   </div>
-                  <div className="mx-auto font-label-md text-[10px] text-on-surface-variant">
-                    SECURE_DASHBOARD_LIVE
-                  </div>
-                </div>
-                <div className="p-stack-lg space-y-stack-md">
-                  <div className="grid grid-cols-2 gap-stack-md">
-                    {METRICS.slice(0, 2).map((m) => (
-                      <div key={m.label} className="bento-card p-card-padding">
-                        <p className="font-label-md text-[10px] text-on-surface-variant uppercase">{m.label}</p>
-                        <p className="text-data-lg text-primary drop-shadow-[0_0_8px_rgba(193,193,255,0.2)]">
-                          {m.value}
+                  <div className="p-stack-lg space-y-stack-md relative">
+                    <div className="grid grid-cols-2 gap-stack-md">
+                      <div className="rounded-xl bg-white/5 border border-white/10 p-card-padding">
+                        <p className="font-mono text-[10px] text-primary/70 uppercase">Active Signals</p>
+                        <p className="text-[40px] leading-none font-heading font-extrabold bg-gradient-to-r from-primary to-secondary-container bg-clip-text text-transparent">
+                          <CountUp to={1284} />
                         </p>
                       </div>
-                    ))}
-                  </div>
-                  <div className="bento-card p-card-padding">
-                    <div className="flex items-center justify-between mb-stack-md">
-                      <span className="font-label-md text-on-surface text-[11px]">THREAT TREND</span>
-                      <Icon name="analytics" className="text-primary text-[18px]" />
+                      <div className="rounded-xl bg-white/5 border border-white/10 p-card-padding">
+                        <p className="font-mono text-[10px] text-primary/70 uppercase">Rings Detected</p>
+                        <p className="text-[40px] leading-none font-heading font-extrabold bg-gradient-to-r from-primary to-secondary-container bg-clip-text text-transparent">
+                          <CountUp to={37} />
+                        </p>
+                      </div>
                     </div>
-                    <div className="h-24 flex items-end gap-1.5">
-                      {[30, 55, 40, 85, 60, 95, 70].map((h, i) => (
-                        <div
-                          key={i}
-                          className="flex-1 bg-primary/30 border-t-2 border-primary rounded-t"
-                          style={{ height: `${h}%` }}
-                        />
-                      ))}
+                    <div className="rounded-xl bg-white/5 border border-white/10 p-card-padding">
+                      <div className="flex items-center justify-between mb-stack-md">
+                        <span className="font-mono text-[11px] text-on-surface-variant tracking-widest">THREAT VELOCITY</span>
+                        <Icon name="monitoring" className="text-primary text-[18px]" />
+                      </div>
+                      <div className="h-36 flex items-end gap-1.5">
+                        {[30, 55, 40, 85, 60, 95, 70, 82, 48].map((h, i) => (
+                          <motion.div
+                            key={i}
+                            className="flex-1 rounded-t origin-bottom"
+                            style={{ height: `${h}%`, background: "linear-gradient(to top, rgba(101,138,255,0.25), #b5c4ff)" }}
+                            initial={{ scaleY: 0.1, opacity: 0.4 }}
+                            animate={{ scaleY: 1, opacity: 1 }}
+                            transition={{ duration: 0.7, delay: 0.5 + i * 0.06, ease: EASE }}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </div>
         </section>
 
-        {/* Metrics bar */}
-        <section className="bg-surface-container-lowest border-y border-outline-variant py-stack-lg">
-          <div className="container mx-auto px-stack-lg lg:px-margin-page flex flex-wrap justify-between items-center gap-stack-lg">
-            {METRICS.map((m) => (
-              <div key={m.label} className="flex flex-col">
-                <span className="font-label-md text-on-surface-variant text-[11px] uppercase tracking-widest">
-                  {m.label}
+        {/* ============ METRICS ============ */}
+        <section className="bg-surface border-y border-white/10 py-stack-lg">
+          <div className="container mx-auto px-stack-lg lg:px-margin-page grid grid-cols-2 lg:grid-cols-4 gap-stack-lg">
+            {METRICS.map((m, i) => (
+              <Reveal key={m.label} delay={i * 0.08} className="flex flex-col items-center lg:items-start">
+                <span className="text-headline-lg font-heading text-secondary-container drop-shadow-[0_0_12px_rgba(0,244,254,0.4)] font-extrabold">
+                  <CountUp to={m.to} decimals={m.decimals} suffix={m.suffix} />
                 </span>
-                <span className="text-headline-md text-primary drop-shadow-[0_0_8px_rgba(193,193,255,0.2)]">
-                  {m.value}
-                </span>
-              </div>
+                <span className="font-mono text-outline text-[11px] uppercase tracking-widest mt-1">{m.label}</span>
+              </Reveal>
             ))}
           </div>
         </section>
 
-        {/* Features */}
-        <section className="py-stack-lg bg-surface-dim" id="features">
+        {/* ============ MODULES ============ */}
+        <section id="modules" className="bg-background py-24 relative">
           <div className="container mx-auto px-stack-lg lg:px-margin-page">
-            <div className="text-center max-w-2xl mx-auto mb-stack-lg">
-              <span className="font-label-md text-primary tracking-[0.3em] uppercase text-[11px]">
-                System Capabilities
-              </span>
-              <h2 className="text-headline-lg text-white mt-stack-sm">
-                Engineered for High-Density Intelligence
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-stack-lg">
-              {FEATURES.map((f) => (
-                <div
-                  key={f.title}
-                  className="group p-card-padding border border-outline-variant bg-surface-container-low hover:bg-surface-container transition-all duration-300 rounded-lg"
+            <Reveal className="text-center max-w-2xl mx-auto mb-stack-lg">
+              <span className="font-mono text-secondary-container tracking-[0.3em] uppercase text-[11px]">Three Modules · One Graph</span>
+              <h2 className="text-headline-lg font-heading text-on-surface mt-stack-sm">An intelligence layer for everyone in the fight</h2>
+            </Reveal>
+            <motion.div variants={containerStagger} initial="hidden" whileInView="show" viewport={{ once: true, margin: "-80px" }} className="grid grid-cols-1 md:grid-cols-3 gap-stack-lg">
+              {MODULES.map((m) => (
+                <motion.div
+                  key={m.title}
+                  variants={itemUp}
+                  whileHover={{ y: -6 }}
+                  className="group relative p-stack-lg rounded-2xl glass-panel overflow-hidden"
                 >
-                  <div className="w-12 h-12 rounded bg-primary-container/20 flex items-center justify-center mb-stack-md group-hover:scale-110 transition-transform">
-                    <Icon name={f.icon} className="text-primary" fill />
+                  <div className="absolute -top-16 -right-16 w-40 h-40 bg-secondary-container/10 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="w-14 h-14 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center mb-stack-md group-hover:scale-110 transition-transform">
+                    <Icon name={m.icon} className="text-secondary-container text-[26px]" fill />
                   </div>
-                  <h3 className="font-headline-sm text-white mb-stack-sm">{f.title}</h3>
-                  <p className="font-body-md text-on-surface-variant leading-relaxed">{f.body}</p>
-                </div>
+                  <span className="font-mono text-[10px] text-secondary-container/70 uppercase tracking-widest">{m.tag}</span>
+                  <h3 className="font-heading text-headline-sm text-on-surface mt-1 mb-stack-sm">{m.title}</h3>
+                  <p className="text-body-md text-on-surface-variant leading-relaxed">{m.body}</p>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           </div>
         </section>
 
-        {/* How it works */}
-        <section className="py-stack-lg bg-surface-container-lowest border-y border-outline-variant" id="how-it-works">
+        {/* ============ FEATURES ============ */}
+        <section id="features" className="bg-surface border-y border-white/10 py-24">
           <div className="container mx-auto px-stack-lg lg:px-margin-page">
-            <div className="mb-stack-lg">
-              <h2 className="text-headline-lg text-white">Precision Protocol</h2>
-              <p className="font-body-md text-on-surface-variant mt-stack-sm">
-                Operational lifecycle of intelligence from ingestion to action.
-              </p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-stack-lg">
-              {STEPS.map((s) => (
-                <div key={s.n} className="flex gap-stack-md group">
-                  <div className="flex-shrink-0 w-8 h-8 rounded border border-primary text-primary flex items-center justify-center font-label-md text-[14px] group-hover:bg-primary group-hover:text-on-primary transition-colors">
-                    {s.n}
+            <Reveal className="text-center max-w-2xl mx-auto mb-stack-lg">
+              <span className="font-mono text-secondary-container tracking-[0.3em] uppercase text-[11px]">System Capabilities</span>
+              <h2 className="text-headline-lg font-heading text-on-surface mt-stack-sm">Engineered for high-density intelligence</h2>
+            </Reveal>
+            <motion.div variants={containerStagger} initial="hidden" whileInView="show" viewport={{ once: true, margin: "-80px" }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-stack-md">
+              {FEATURES.map((f) => (
+                <motion.div
+                  key={f.title}
+                  variants={itemUp}
+                  whileHover={{ y: -5 }}
+                  className="group rounded-2xl glass-panel p-stack-lg"
+                >
+                  <div className="w-12 h-12 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center mb-stack-md group-hover:scale-110 group-hover:rotate-3 transition-transform">
+                    <Icon name={f.icon} className="text-secondary-container" fill />
                   </div>
-                  <div>
-                    <h4 className="font-headline-sm text-white text-[18px]">{s.title}</h4>
-                    <p className="font-body-md text-on-surface-variant">{s.body}</p>
+                  <h3 className="font-heading text-headline-sm text-on-surface mb-stack-sm">{f.title}</h3>
+                  <p className="text-body-md text-on-surface-variant leading-relaxed">{f.body}</p>
+                </motion.div>
+              ))}
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ============ HOW IT WORKS ============ */}
+        <section id="how-it-works" className="bg-background py-24 relative overflow-hidden">
+          <div className="container mx-auto px-stack-lg lg:px-margin-page relative z-10">
+            <Reveal className="mb-stack-lg">
+              <span className="font-mono text-secondary-container tracking-[0.3em] uppercase text-[11px]">Precision Protocol</span>
+              <h2 className="text-headline-lg font-heading text-on-surface mt-stack-sm">From raw evidence to tactical intelligence</h2>
+            </Reveal>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-stack-lg relative">
+              {STEPS.map((s, i) => (
+                <Reveal key={s.n} delay={i * 0.12} className="relative">
+                  <div className="flex flex-col gap-stack-md p-stack-lg rounded-2xl glass-panel h-full">
+                    <div className="w-12 h-12 rounded-xl border border-secondary-container/50 text-secondary-container flex items-center justify-center font-mono text-[16px] font-bold neon-glow">
+                      {s.n}
+                    </div>
+                    <h4 className="font-heading text-headline-sm text-on-surface">{s.title}</h4>
+                    <p className="text-body-md text-on-surface-variant leading-relaxed">{s.body}</p>
                   </div>
-                </div>
+                  {i < STEPS.length - 1 && (
+                    <div className="hidden md:block absolute top-1/2 -right-3 w-6 h-px bg-gradient-to-r from-secondary-container/60 to-transparent" />
+                  )}
+                </Reveal>
               ))}
             </div>
           </div>
         </section>
 
-        {/* CTA */}
-        <section className="py-stack-lg bg-surface-dim relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[100px]" />
-          <div className="container mx-auto px-stack-lg lg:px-margin-page text-center">
-            <div className="max-w-4xl mx-auto border border-outline-variant p-stack-lg rounded-xl bg-surface-container-lowest/50 backdrop-blur-sm glowing-border">
-              <h2 className="text-headline-lg text-white mb-stack-md">Ready to Deploy Intelligence?</h2>
-              <p className="font-body-md text-on-surface-variant max-w-xl mx-auto mb-stack-lg">
+        {/* ============ CTA ============ */}
+        <section className="bg-background py-28 relative overflow-hidden">
+          <div className="absolute inset-0 grid-overlay opacity-40" />
+          <div className="container mx-auto px-stack-lg lg:px-margin-page relative z-10">
+            <Reveal className="max-w-4xl mx-auto text-center p-stack-lg lg:p-margin-page rounded-3xl glass-panel primary-glow">
+              <h2 className="text-headline-lg lg:text-display-lg font-heading bg-gradient-to-r from-primary to-secondary-container bg-clip-text text-transparent mb-stack-md">Ready to deploy intelligence?</h2>
+              <p className="text-[17px] text-on-surface-variant max-w-xl mx-auto mb-stack-lg leading-relaxed">
                 Join the premier network for digital defense and predictive public safety enforcement.
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-stack-md">
-                <Link
-                  href="/auth"
-                  className="bg-primary-container text-white px-stack-lg py-stack-md font-headline-sm text-[16px] rounded hover:brightness-110 transition-all border border-primary/20"
-                >
+                <Link href="/auth" className="btn-bloom btn-shimmer text-on-primary-container font-heading font-semibold rounded-xl px-6 py-3 inline-flex items-center justify-center gap-2">
+                  <Icon name="rocket_launch" />
                   Enroll in Citizen Shield
                 </Link>
+                <Link href="/auth" className="btn-shimmer inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-white/10 bg-white/5 text-on-surface hover:border-secondary-container/40 hover:text-secondary-container transition-colors">
+                  Request Agency Demo
+                </Link>
               </div>
-            </div>
+            </Reveal>
           </div>
         </section>
 
-        <footer className="bg-surface-container-lowest border-t border-outline-variant py-stack-lg">
+        {/* ============ FOOTER ============ */}
+        <footer className="bg-background border-t border-white/10 py-stack-lg">
           <div className="container mx-auto px-stack-lg lg:px-margin-page flex flex-col md:flex-row justify-between items-center gap-stack-md">
-            <span className="text-headline-md font-extrabold text-primary tracking-tighter">TRUVIA</span>
-            <div className="flex gap-stack-lg font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest">
+            <div className="flex items-center gap-stack-sm">
+              <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
+                <Icon name="shield_lock" className="text-primary text-[16px]" fill />
+              </div>
+              <span className="text-headline-md font-heading font-extrabold text-on-surface tracking-tight">Truvia</span>
+            </div>
+            <div className="flex gap-stack-lg font-mono text-[10px] text-outline uppercase tracking-widest">
               <span>© 2026 TRUVIA COMMAND</span>
-              <span>PRIVACY</span>
-              <span>TERMS</span>
+              <span className="hover:text-secondary-container transition-colors cursor-pointer">PRIVACY</span>
+              <span className="hover:text-secondary-container transition-colors cursor-pointer">TERMS</span>
             </div>
           </div>
         </footer>
