@@ -114,6 +114,17 @@ export default function AuthPage() {
           className="pointer-events-none absolute -top-1/2 -left-1/2 h-full w-full rotate-45 bg-gradient-to-br from-white/10 to-transparent"
         />
 
+        {/* ─── Back to Home ─── */}
+        <motion.div variants={itemVariants} className="relative mb-4">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 font-sans text-label-md uppercase tracking-widest text-outline transition-colors hover:text-secondary-fixed-dim"
+          >
+            <Icon name="arrow_back" className="text-[18px]" />
+            Back to Home
+          </Link>
+        </motion.div>
+
         {/* ─── Header ─── */}
         <motion.div variants={itemVariants} className="relative mb-6 flex flex-col items-center text-center">
           <Link href="/" className="group inline-flex flex-col items-center">

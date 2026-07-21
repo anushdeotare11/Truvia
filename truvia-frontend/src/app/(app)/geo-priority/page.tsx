@@ -9,10 +9,17 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { Icon } from "@/components/Icon";
 import { PageLoader } from "@/components/AppShell";
 import { api, ApiError } from "@/lib/api";
 import type { GeoPriorityRow } from "@/lib/types";
+
+// Leaflet touches `window`, so the map is client-only (no SSR).
+const GeoMap = dynamic(() => import("@/components/GeoMap"), {
+  ssr: false,
+  loading: () => <PageLoader />,
+});
 
 const DAYS_OPTIONS = [7, 14, 30, 60, 90];
 
@@ -29,6 +36,7 @@ export default function GeoPriorityPage() {
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(30);
   const [category, setCategory] = useState("");
+  const [view, setView] = useState<"table" | "map">("table");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,6 +97,31 @@ export default function GeoPriorityPage() {
               className="bg-surface-container-high border border-outline-variant/30 text-on-surface rounded-lg text-body-md focus:ring-1 focus:ring-primary h-10 px-stack-md outline-none"
             />
           </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="font-label-md text-on-surface-variant/70 uppercase">View</label>
+            <div className="flex h-10 rounded-lg overflow-hidden border border-outline-variant/30 bg-surface-container-high">
+              <button
+                type="button"
+                onClick={() => setView("table")}
+                className={`flex items-center gap-1.5 px-stack-md font-label-md text-body-sm transition-colors ${
+                  view === "table" ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container-highest"
+                }`}
+              >
+                <Icon name="table_rows" className="text-[18px]" />
+                Table
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("map")}
+                className={`flex items-center gap-1.5 px-stack-md font-label-md text-body-sm transition-colors ${
+                  view === "map" ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container-highest"
+                }`}
+              >
+                <Icon name="map" className="text-[18px]" />
+                Map
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -99,6 +132,10 @@ export default function GeoPriorityPage() {
               <PageLoader />
             ) : error ? (
               <div className="p-6 text-error font-body-md">{error}</div>
+            ) : view === "map" ? (
+              <div className="h-full w-full p-3">
+                <GeoMap rows={rows} onCityClick={drillThrough} />
+              </div>
             ) : (
               <table className="w-full border-collapse">
                 <thead className="sticky top-0 bg-surface-container-high z-10">

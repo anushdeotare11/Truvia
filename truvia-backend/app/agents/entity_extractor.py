@@ -154,8 +154,14 @@ class EntityExtractorAgent:
                         # Update existing entity seen counters
                         entity.occurrence_count += 1
                         entity.last_seen_at = datetime.utcnow()
-                        # Increment risk slightly on recurring alerts
-                        entity.risk_score = min(entity.risk_score + 10.0, 100.0)
+                        # Increment risk slightly on recurring alerts.
+                        # NOTE: risk_score is a Numeric column -> loaded from the DB as
+                        # decimal.Decimal on the re-seen (reuse) path. `Decimal + float`
+                        # raises TypeError, which previously crashed Agent 4 on EVERY
+                        # entity reuse (leaving reports stuck at 'extracting_entities'
+                        # with zero cross-report links). Coerce to float so the intended
+                        # increment logic actually runs.
+                        entity.risk_score = min(float(entity.risk_score) + 10.0, 100.0)
                         if entity.risk_score >= 90:
                             entity.risk_tier = "critical"
                         elif entity.risk_score >= 70:

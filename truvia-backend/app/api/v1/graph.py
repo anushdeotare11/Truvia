@@ -158,11 +158,22 @@ async def get_graph_overview(
     node_ids: set = set()
     clusters_meta: List[Dict[str, Any]] = []
 
+    # Batch-load members for ALL top-N rings in a single query (was an N+1:
+    # one query per ring). Group in Python, preserving the original semantics
+    # where a shared entity is assigned to the first (highest-risk) ring's group.
+    from collections import defaultdict as _defaultdict
+    members_by_ring: Dict[Any, List[Entity]] = _defaultdict(list)
+    if rings:
+        ring_ids = [ring.id for ring in rings]
+        member_rows = (await db.execute(
+            select(Entity, FraudRingMember.ring_id)
+            .join(FraudRingMember, FraudRingMember.entity_id == Entity.id)
+            .where(FraudRingMember.ring_id.in_(ring_ids))
+        )).all()
+        for entity, ring_id in member_rows:
+            members_by_ring[ring_id].append(entity)
+
     for group_idx, ring in enumerate(rings):
-        members = (await db.execute(
-            select(Entity).join(FraudRingMember, FraudRingMember.entity_id == Entity.id)
-            .where(FraudRingMember.ring_id == ring.id)
-        )).scalars().all()
         clusters_meta.append({
             "ring_id": ring.neo4j_ring_id,
             "group": group_idx,
@@ -171,7 +182,7 @@ async def get_graph_overview(
             "aggregate_risk_score": float(ring.aggregate_risk_score),
             "dominant_category": ring.dominant_category,
         })
-        for e in members:
+        for e in members_by_ring.get(ring.id, []):
             if str(e.id) not in node_ids:
                 node_ids.add(str(e.id))
                 nodes.append(_entity_node(e, group=group_idx))
