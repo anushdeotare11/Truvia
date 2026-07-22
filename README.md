@@ -22,7 +22,6 @@
     <img src="https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript">
     <img src="https://img.shields.io/badge/PostgreSQL-NeonDB-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL">
     <img src="https://img.shields.io/badge/Neo4j-GraphDB-008CC1?style=for-the-badge&logo=neo4j&logoColor=white" alt="Neo4j">
-    <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License: MIT">
     <img src="https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge" alt="Build Status">
   </p>
 
@@ -52,10 +51,8 @@
 - [Testing](#-testing)
 - [Deployment](#-deployment)
 - [Contributing](#-contributing)
-- [License](#-license)
 - [Contributors](#-contributors)
 - [Acknowledgements](#-acknowledgements)
-- [Contact](#-contact)
 
 ---
 
@@ -392,25 +389,13 @@ FastAPI automatically generates interactive API documentation. Start the backend
 
 ---
 
-## 📄 License
-
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
-
----
-
 ## 🤝 Contributors
 
 <a href="https://github.com/anushdeotare11/Truvia/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=anushdeotare11/Truvia" />
 </a>
 
----
-
-## 📬 Contact
-
-- **GitHub Repository**: [anushdeotare11/Truvia](https://github.com/anushdeotare11/Truvia)
-- **Project Lead**: [Anush Deotare](https://github.com/anushdeotare11)
-
 <div align="center">
+  <br />
   <sub>Built with ❤️ for Digital Public Safety.</sub>
 </div>
