@@ -98,7 +98,8 @@ async def submit_report(
 
     # 3. Schedule Agent pipeline to run in-process after the response is returned.
     #    (Redis/RQ worker is not required — the pipeline runs as a FastAPI background task.)
-    background_tasks.add_task(run_pipeline, str(new_report.id))
+    import asyncio
+    asyncio.create_task(run_pipeline(str(new_report.id)))
 
     # Return report structure
     # Fetch complete object with evidence items preloaded
