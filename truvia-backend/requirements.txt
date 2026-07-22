@@ -4,6 +4,7 @@ pydantic>=2.7.4
 pydantic-settings>=2.3.4
 SQLAlchemy>=2.0.30
 asyncpg>=0.29.0
+pgvector>=0.2.5
 alembic>=1.13.1
 aiosqlite>=0.20.0
 google-generativeai>=0.7.0
