@@ -85,3 +85,6 @@ truvia-backend/storage/
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Design specs
+stitch_truvia_immersive_redesign_spec/
