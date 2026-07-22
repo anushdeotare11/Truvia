@@ -15,7 +15,7 @@ app = FastAPI(
     version="1.0"
 )
 
-# Build CORS origins list dynamically from environment
+# Build CORS origins list dynamically from environment, with regex fallback for Vercel & preview deployments
 _dev_origins = [
     "http://localhost:3000",
     "http://localhost:3001",
@@ -24,10 +24,8 @@ _dev_origins = [
 
 def _build_origins() -> list[str]:
     origins = list(_dev_origins)
-    # Add FRONTEND_URL (e.g. https://truvia.vercel.app)
     if settings.FRONTEND_URL:
         origins.append(settings.FRONTEND_URL.rstrip("/"))
-    # Add any extra origins from CORS_ORIGINS (comma-separated)
     if settings.CORS_ORIGINS:
         for o in settings.CORS_ORIGINS.split(","):
             o = o.strip().rstrip("/")
@@ -38,6 +36,7 @@ def _build_origins() -> list[str]:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_origins(),
+    allow_origin_regex=r"https?://.*",  # Matches any HTTP/HTTPS origin (Vercel, Railway, preview URLs)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
