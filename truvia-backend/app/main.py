@@ -15,12 +15,15 @@ app = FastAPI(
     version="1.0"
 )
 
-# CORS setup — echo the request Origin (regex) so credentialed cross-origin
-# requests work. Using allow_origins=["*"] together with allow_credentials=True
-# is rejected by browsers, so we use allow_origin_regex instead.
+origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

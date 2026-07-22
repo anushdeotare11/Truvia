@@ -48,7 +48,7 @@ class InputProcessorAgent:
         if self.api_key and "your-google-key" not in self.api_key and len(self.api_key) > 10:
             from app.core.genai_helper import configure_genai
             configure_genai(self.api_key)
-            self.client = genai.GenerativeModel("gemini-2.0-flash")
+            self.client = genai.GenerativeModel("gemini-2.5-flash")
             logger.info("Initialized InputProcessorAgent with Google Gemini API client")
         else:
             self.client = None
@@ -247,12 +247,14 @@ class InputProcessorAgent:
                     res_content = res_content.split("```")[1].split("```")[0].strip()
                     
                 data = json.loads(res_content)
-                return (
-                    data.get("extracted_text", ""),
-                    data.get("language", "en"),
-                    float(data.get("confidence", 0.95))
-                )
-
+                text = data.get("extracted_text", "").strip()
+                if text:
+                    return (
+                        text,
+                        data.get("language", "en"),
+                        float(data.get("confidence", 0.95))
+                    )
+                logger.info("Gemini OCR returned empty text. Trying local RapidOCR engine...")
             except Exception as e:
                 import google.api_core.exceptions as exc
                 if isinstance(e, exc.Unauthenticated):

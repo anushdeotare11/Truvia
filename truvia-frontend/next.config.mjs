@@ -7,12 +7,10 @@ const nextConfig = {
   skipTrailingSlashRedirect: true,
   eslint: { ignoreDuringBuilds: true },
   async rewrites() {
-    const raw = (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
-    const backendUrl = raw.replace(/\/api(\/v1)?$/, "");
     return [
       {
         source: "/api/:path*",
-        destination: `${backendUrl}/api/:path*`,
+        destination: "http://127.0.0.1:8000/api/:path*",
       },
     ];
   },
