@@ -26,13 +26,6 @@
     <img src="https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge" alt="Build Status">
   </p>
 
-  <br />
-
-  <!-- Hero Banner Placeholder -->
-  <p align="center">
-    <img src="https://via.placeholder.com/1200x500/0d1117/58a6ff?text=Truvia+Autonomous+Digital+Public+Safety+Platform" alt="Truvia Banner" width="100%">
-  </p>
-
 </div>
 
 ---
@@ -51,7 +44,6 @@
 - [Environment Variables](#-environment-variables)
 - [Running the Project](#-running-the-project)
 - [Workflow](#-workflow)
-- [Screenshots](#-screenshots)
 - [Demo](#-demo)
 - [API Documentation](#-api-documentation)
 - [Future Roadmap](#-future-roadmap)
@@ -349,22 +341,6 @@ cd truvia-frontend
 npm run dev
 ```
 *Frontend application will run at `http://localhost:3000`*
-
----
-
-## 📸 Screenshots
-
-<div align="center">
-
-| Landing Page | Fraud Shield Intake |
-| :---: | :---: |
-| <img src="https://via.placeholder.com/600x350/0d1117/58a6ff?text=Truvia+Landing+Page" width="100%"> | <img src="https://via.placeholder.com/600x350/0d1117/58a6ff?text=Citizen+Fraud+Shield+Portal" width="100%"> |
-
-| Officer Intelligence Graph | Geo-Priority Heatmap |
-| :---: | :---: |
-| <img src="https://via.placeholder.com/600x350/0d1117/58a6ff?text=Graph+Intelligence+Explorer" width="100%"> | <img src="https://via.placeholder.com/600x350/0d1117/58a6ff?text=Geo-Priority+Incident+Map" width="100%"> |
-
-</div>
 
 ---
 
