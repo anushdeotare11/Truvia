@@ -4,26 +4,101 @@ from app.config import settings
 from app.data.postgres_client import is_sqlite
 from app.models.knowledge import KnowledgeBaseChunk
 import logging
+import math
+import re
+import hashlib
+from collections import Counter
 from typing import List, Dict, Any
 
 logger = logging.getLogger("truvia.vector")
 
-# Dummy embedder for local development or when API keys are not provided
+# ---------------------------------------------------------------------------
+# Offline, dependency-light *semantic-lexical* embedder (feature hashing).
+#
+# The previous implementation returned a vector derived only from the sum of a
+# string's character codes. That made every text look nearly identical (a
+# shifted sawtooth ramp), so cosine similarity was effectively meaningless and
+# retrieval was random — a CBI/"digital arrest" question would surface QR-code
+# fraud chunks. See scripts/_rag_diag.py.
+#
+# This replacement builds a real bag-of-terms vector via *feature hashing*
+# (a.k.a. the hashing trick): each token/bigram is hashed into one of
+# EMBEDDING_DIM buckets with a signed sub-linear TF weight, then the vector is
+# L2-normalized. Cosine similarity then reflects genuine shared vocabulary
+# between a question and a chunk — which is exactly what makes retrieval
+# relevant for keyword-rich fraud-guidance content. It is fully deterministic,
+# uses only numpy, and — critically — the SAME function is used to embed the
+# knowledge base at ingestion time and the incoming question at query time, so
+# the two vector spaces always match (no embedding-model mismatch).
+#
+# The dimensionality is kept at 1536 so the existing pgvector column
+# (Vector(1536)) needs no schema migration.
+# ---------------------------------------------------------------------------
+EMBEDDING_DIM = 1536
+EMBEDDING_MODEL_VERSION = "hashing-tf-v2"
+
+# Generic, non-discriminative words. Domain terms (upi, otp, kyc, cbi, bank,
+# fraud, arrest, ...) are intentionally NOT stopped — they carry the signal.
+_STOPWORDS = {
+    "the", "a", "an", "and", "or", "of", "to", "in", "is", "are", "for", "on",
+    "with", "how", "does", "do", "what", "why", "when", "who", "which", "i",
+    "my", "me", "you", "your", "it", "this", "that", "if", "can", "should",
+    "about", "from", "be", "as", "at", "by", "was", "were", "will", "would",
+    "tell", "please", "someone", "they", "them", "their", "there", "here",
+    "have", "has", "had", "not", "no", "yes", "get", "got", "any", "some",
+    "into", "out", "up", "down", "so", "but", "then", "than", "also", "such",
+    "these", "those", "am", "been", "being", "he", "she", "we", "us", "our",
+}
+
+
+def _tokenize(text_in: str) -> List[str]:
+    return [
+        t for t in re.findall(r"[a-z0-9]+", (text_in or "").lower())
+        if len(t) >= 2 and t not in _STOPWORDS
+    ]
+
+
+def _terms(text_in: str) -> List[str]:
+    """Unigrams + adjacent bigrams. Bigrams (e.g. 'digital_arrest',
+    'collect_request', 'report_fraud') sharpen discrimination between advisories
+    that share generic vocabulary."""
+    toks = _tokenize(text_in)
+    terms = list(toks)
+    for i in range(len(toks) - 1):
+        terms.append(f"{toks[i]}_{toks[i + 1]}")
+    return terms
+
+
+def _bucket_and_sign(term: str) -> tuple[int, float]:
+    h = int(hashlib.md5(term.encode("utf-8")).hexdigest(), 16)
+    idx = h % EMBEDDING_DIM
+    sign = 1.0 if ((h >> 17) & 1) else -1.0
+    return idx, sign
+
+
 async def get_embedding(text_to_embed: str) -> List[float]:
+    """Deterministic 1536-dim feature-hashing embedding (offline, numpy-only).
+
+    Cosine similarity of two of these vectors is high when the texts share
+    salient terms/bigrams and near-zero when they don't — real, meaningful
+    retrieval, unlike the previous char-sum placeholder.
     """
-    Generate embedding for text.
-    For local development, returns a deterministic dummy vector of 1536 float values.
-    For production, calls Anthropic / external embedding API.
-    """
-    # 1536 is standard size for OpenAI/Anthropic-friendly embeddings
-    # We will generate a simple deterministic vector based on string characters
-    char_sum = sum(ord(c) for c in text_to_embed)
-    dummy_vector = [((char_sum + i) % 100) / 100.0 for i in range(1536)]
-    # Normalize vector
-    magnitude = sum(x**2 for x in dummy_vector) ** 0.5
-    if magnitude > 0:
-        dummy_vector = [x / magnitude for x in dummy_vector]
-    return dummy_vector
+    import numpy as np
+
+    vec = np.zeros(EMBEDDING_DIM, dtype=np.float64)
+    terms = _terms(text_to_embed or "")
+    if not terms:
+        return [0.0] * EMBEDDING_DIM
+
+    for term, count in Counter(terms).items():
+        idx, sign = _bucket_and_sign(term)
+        # sub-linear term-frequency weighting
+        vec[idx] += sign * (1.0 + math.log(count))
+
+    norm = float(np.linalg.norm(vec))
+    if norm > 0:
+        vec = vec / norm
+    return vec.tolist()
 
 def python_cosine_similarity(v1: List[float], v2: List[float]) -> float:
     dot_product = sum(x*y for x, y in zip(v1, v2))

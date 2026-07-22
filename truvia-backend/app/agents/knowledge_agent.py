@@ -32,15 +32,36 @@ class KnowledgeAgent:
             if report_id is not None:
                 report_context_block = await self._build_report_context(session, report_id)
 
-            # 1. Query vector database for similar chunks
-            # Cosine similarity threshold is 0.25 to accommodate local deterministic embedder
+            # 1. Query vector database for similar chunks.
+            # The feature-hashing embedding (vector_client.get_embedding) produces
+            # meaningful cosine similarity, but short questions vs. longer advisory
+            # chunks yield genuinely-relevant scores in the ~0.08–0.30 range (the
+            # top-ranked chunk is reliably the correct advisory). A 0.04 floor keeps
+            # those relevant matches while still excluding zero-overlap noise, so an
+            # off-topic question retrieves nothing and gets the honest "no advisory"
+            # answer instead of a spurious citation. Results are distance-ordered,
+            # so the most relevant chunk is always first.
             matched_chunks = await search_similar_chunks(
                 session=session,
                 query_text=query_text,
-                limit=3,
-                similarity_threshold=0.25
+                limit=4,
+                similarity_threshold=0.04
             )
-            
+
+            # Lexical-overlap guard: feature-hashing can assign a tiny spurious
+            # cosine to an unrelated chunk (hash-bucket collisions), which would
+            # otherwise let an off-topic question ("best pizza topping") surface a
+            # random advisory. Require each retrieved chunk to actually share a
+            # meaningful content word with the question; if none do, we honestly
+            # report that we have no relevant advisory rather than citing noise.
+            from app.data.vector_client import _tokenize
+            q_terms = {t for t in _tokenize(query_text) if len(t) >= 3}
+            if q_terms:
+                matched_chunks = [
+                    c for c in matched_chunks
+                    if q_terms & {t for t in _tokenize(c["chunk_text"]) if len(t) >= 3}
+                ]
+
             logger.info(f"RAG search found {len(matched_chunks)} relevant guideline chunks")
 
             # 2. Formulate Context
@@ -171,13 +192,16 @@ class KnowledgeAgent:
         try:
             prompt = (
                 "You are Truvia's Citizen Fraud Protection Assistant. "
-                "Answer the citizen's query based ONLY on the provided regulatory guidelines. "
-                "Always cite your sources using inline square brackets like [RBI] or [CERT-In]. "
-                "If the guidelines do not contain the answer, politely state that you do not "
-                "have official documentation for this topic, but warn them to remain vigilant.\n\n"
-                f"Context Chunks:\n{context}\n\n"
-                f"Citizen Query: \"{query}\"\n\n"
-                "Answer:"
+                "Answer the citizen's question using ONLY the official guidance provided in the "
+                "context below. Do NOT use outside knowledge and do NOT improvise. "
+                "Cite the source of each claim inline in square brackets, e.g. [RBI] or [CERT-In], "
+                "matching the sources shown in the context. "
+                "If the provided context does not actually address the question, do not guess — "
+                "reply plainly: \"I don't have enough official guidance to answer that confidently,\" "
+                "and point them to the national cybercrime helpline 1930 / cybercrime.gov.in.\n\n"
+                f"Context (official advisories):\n{context}\n\n"
+                f"Citizen question: \"{query}\"\n\n"
+                "Grounded answer:"
             )
 
             response = await asyncio.to_thread(self.client.generate_content, prompt)

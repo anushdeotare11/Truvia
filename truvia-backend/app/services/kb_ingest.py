@@ -7,22 +7,53 @@ actions (App Flow §8.3/§8.4) so admin uploads go through the exact same
 pipeline that powers RAG chat — no mocks.
 """
 import logging
+import re
 
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.data.vector_client import get_embedding
+from app.data.vector_client import get_embedding, EMBEDDING_MODEL_VERSION
 from app.models.knowledge import KnowledgeBase, KnowledgeBaseChunk
 
 logger = logging.getLogger("truvia.services.kb_ingest")
 
-CHUNK_SIZE = 250
-EMBEDDING_MODEL_VERSION = "custom-local-hash"
+# Sentence/paragraph-aware chunking. The advisories are short (≈550–710 chars),
+# so a ~700-char target keeps most of a document intact as one coherent chunk
+# instead of the previous fixed 250-char slices that cut mid-sentence (and even
+# mid-word), which destroyed the context a passage needs to answer a question.
+CHUNK_SIZE = 700
+CHUNK_OVERLAP = 120
 
 
-def _chunk(content: str, size: int = CHUNK_SIZE):
-    content = content or ""
-    return [content[i:i + size] for i in range(0, len(content), size)] or [""]
+def _chunk(content: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP):
+    """Split on sentence boundaries and pack sentences up to `size` chars, with a
+    small character overlap carried between adjacent chunks so a passage split
+    across a boundary keeps its surrounding context. Never cuts mid-sentence."""
+    content = (content or "").strip()
+    if not content:
+        return [""]
+
+    # Sentence-ish boundaries: end punctuation followed by whitespace. Numbered
+    # list items ("1) ... 2) ...") are naturally kept together up to `size`.
+    sentences = [s for s in re.split(r"(?<=[.!?])\s+", content) if s.strip()]
+    if not sentences:
+        return [content]
+
+    chunks: list[str] = []
+    cur = ""
+    for sent in sentences:
+        sent = sent.strip()
+        if not cur:
+            cur = sent
+        elif len(cur) + 1 + len(sent) <= size:
+            cur = f"{cur} {sent}"
+        else:
+            chunks.append(cur.strip())
+            tail = cur[-overlap:].strip() if overlap and len(cur) > overlap else ""
+            cur = f"{tail} {sent}".strip() if tail else sent
+    if cur.strip():
+        chunks.append(cur.strip())
+    return chunks or [""]
 
 
 async def index_document(session: AsyncSession, kb: KnowledgeBase) -> int:
