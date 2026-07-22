@@ -7,7 +7,7 @@ import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { useAuth } from "@/lib/auth";
 import { homeForRole } from "@/lib/nav";
-import { ApiError } from "@/lib/api";
+import { ApiError, clearToken } from "@/lib/api";
 
 type Tab = "login" | "signup";
 type RoleMode = "citizen" | "agency";
@@ -41,6 +41,21 @@ export default function AuthPage() {
     try {
       if (tab === "login") {
         const me = await login(email.trim(), password);
+        
+        // Strict Role-Tab Mode Check: Block login if user role doesn't match selected tab mode
+        if (roleMode === "agency" && me.role === "citizen") {
+          clearToken();
+          setError("Access Denied: This is a Citizen account. Please switch to the Citizen tab to sign in.");
+          setSubmitting(false);
+          return;
+        }
+        if (roleMode === "citizen" && me.role !== "citizen") {
+          clearToken();
+          setError("Access Denied: This account is registered for Law Enforcement. Please switch to the Law Enforcement tab to sign in.");
+          setSubmitting(false);
+          return;
+        }
+
         router.replace(homeForRole(me.role));
       } else {
         if (roleMode === "agency") {
