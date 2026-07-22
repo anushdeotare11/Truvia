@@ -15,15 +15,29 @@ app = FastAPI(
     version="1.0"
 )
 
-origins = [
+# Build CORS origins list dynamically from environment
+_dev_origins = [
     "http://localhost:3000",
     "http://localhost:3001",
     "http://127.0.0.1:3000",
 ]
 
+def _build_origins() -> list[str]:
+    origins = list(_dev_origins)
+    # Add FRONTEND_URL (e.g. https://truvia.vercel.app)
+    if settings.FRONTEND_URL:
+        origins.append(settings.FRONTEND_URL.rstrip("/"))
+    # Add any extra origins from CORS_ORIGINS (comma-separated)
+    if settings.CORS_ORIGINS:
+        for o in settings.CORS_ORIGINS.split(","):
+            o = o.strip().rstrip("/")
+            if o and o not in origins:
+                origins.append(o)
+    return origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=_build_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -78,6 +92,13 @@ async def startup_event():
         await check_and_create_tables()
     except Exception as e:
         logger.error(f"Error bootstrapping local database tables: {str(e)}")
+
+    # Ensure demo login accounts exist so the app is usable immediately after deploy.
+    try:
+        from app.core.seed import ensure_demo_users
+        await ensure_demo_users()
+    except Exception as e:
+        logger.error(f"Could not ensure demo users: {str(e)}")
 
     # Install admin observability/telemetry (agent latency + error + citation
     # logging) for the System Health screen. Non-invasive; agent files unchanged.

@@ -1,0 +1,11 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.log
+*.db
+truvia.db
+storage/
+.env
+.pytest_cache/
+alembic/

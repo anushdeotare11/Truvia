@@ -16,8 +16,8 @@ class Neo4jClient:
             )
             logger.info("Successfully connected to Neo4j graph database")
         except Exception as e:
-            logger.error(f"Failed to connect to Neo4j database: {str(e)}")
-            raise
+            logger.warning(f"Neo4j unavailable — graph features will be degraded: {str(e)}")
+            self.driver = None
 
     async def close(self):
         if self.driver:

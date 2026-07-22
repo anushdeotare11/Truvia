@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
+from pydantic import Field, model_validator
 from typing import Optional
+import os
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -15,6 +16,11 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     PORT: int = 8000
     HOST: str = "0.0.0.0"
+
+    # CORS — comma-separated origins, or "*" for allow-all.
+    # Vercel production URL is always included automatically in main.py.
+    CORS_ORIGINS: str = Field(default="")
+    FRONTEND_URL: str = Field(default="")
 
     # PostgreSQL Config
     DATABASE_URL: str = Field(
@@ -34,6 +40,14 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    @model_validator(mode="after")
+    def _jwt_secret_fallback(self) -> "Settings":
+        """Railway often sets JWT_SECRET instead of JWT_SECRET_KEY. Accept both."""
+        env_fallback = os.environ.get("JWT_SECRET")
+        if env_fallback and self.JWT_SECRET_KEY == "supersecretkeyforjwtverificationandgeneration2026":
+            self.JWT_SECRET_KEY = env_fallback
+        return self
 
     # LLM Provider Config
     ANTHROPIC_API_KEY: Optional[str] = Field(default=None)
@@ -56,3 +70,4 @@ class Settings(BaseSettings):
     ASR_LOW_CONFIDENCE_THRESHOLD: float = 0.60
 
 settings = Settings()
+

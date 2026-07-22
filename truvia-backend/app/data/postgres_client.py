@@ -23,6 +23,19 @@ logger = logging.getLogger("truvia.data.postgres")
 
 # Check if we should fallback to SQLite (e.g. if postgres is not reachable)
 db_url = settings.DATABASE_URL
+
+# Normalize provider-supplied URLs. Railway/Render/Heroku hand out `postgres://`
+# or `postgresql://` (a SYNC driver scheme); SQLAlchemy's async engine needs the
+# asyncpg driver. Also strip the libpq `sslmode` query param that asyncpg rejects.
+if db_url.startswith("postgres://"):
+    db_url = "postgresql+asyncpg://" + db_url[len("postgres://"):]
+elif db_url.startswith("postgresql://"):
+    db_url = "postgresql+asyncpg://" + db_url[len("postgresql://"):]
+if "sslmode=" in db_url:
+    import re as _re
+    db_url = _re.sub(r"[?&]sslmode=[^&]*", "", db_url)
+    db_url = db_url.rstrip("?&")
+
 is_sqlite = False
 
 if "localhost" in db_url or "127.0.0.1" in db_url:
