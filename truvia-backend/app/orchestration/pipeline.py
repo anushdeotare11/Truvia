@@ -146,6 +146,9 @@ async def run_pipeline_continuation(report_id: str) -> dict:
     # Mark pipeline as completed
     await _update_pipeline_stage(report_id, "completed")
     
+    import gc
+    gc.collect()
+    
     return {
         "agent2": agent2_result,
         "agent4": agent4_result,

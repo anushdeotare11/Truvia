@@ -18,7 +18,6 @@ import { useAuth } from "@/lib/auth";
 import { homeForRole } from "@/lib/nav";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
-const BLUE = "#4da2ff";
 
 const NAV = [
   { label: "Modules", href: "#modules" },

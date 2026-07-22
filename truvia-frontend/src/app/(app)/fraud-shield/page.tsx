@@ -134,11 +134,15 @@ export default function FraudShieldPage() {
       const created = await api.postForm<Report>("/reports/submit", form);
       setPipelineStage("ingesting");
       const final = created.threat_scores.length > 0 ? created : await pollReport(created.id);
-      setReport(final);
-      setPipelineStage(null);
-      loadHistory();
+      if (final.status === "failed") {
+        setError("Analysis could not extract readable content from this file. Try a clearer image or paste the text directly under the Text tab.");
+        setReport(null);
+      } else {
+        setReport(final);
+        loadHistory();
+      }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Analysis failed. Please try again.");
+      setError(err instanceof ApiError ? err.message : "Analysis service timed out. Please try again or paste the text directly.");
     } finally {
       setAnalyzing(false);
       setPipelineStage(null);
