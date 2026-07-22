@@ -26,9 +26,13 @@ def _get_ocr_engine():
     """Return a cached RapidOCR engine (bundled ONNX models, fully offline)."""
     global _rapidocr_engine
     if _rapidocr_engine is None:
-        from rapidocr_onnxruntime import RapidOCR
-        _rapidocr_engine = RapidOCR()
-        logger.info("Local RapidOCR engine initialised (offline OCR).")
+        try:
+            from rapidocr_onnxruntime import RapidOCR
+            _rapidocr_engine = RapidOCR()
+            logger.info("Local RapidOCR engine initialised (offline OCR).")
+        except Exception as e:
+            logger.warning(f"Local RapidOCR engine unavailable, using Cloud Gemini Vision: {e}")
+            return None
     return _rapidocr_engine
 
 
@@ -36,9 +40,13 @@ def _get_whisper_model():
     """Return a cached faster-whisper model (CPU int8). Downloads once, then cached."""
     global _whisper_model
     if _whisper_model is None:
-        from faster_whisper import WhisperModel
-        _whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
-        logger.info("Local faster-whisper model initialised (offline ASR).")
+        try:
+            from faster_whisper import WhisperModel
+            _whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+            logger.info("Local faster-whisper model initialised (offline ASR).")
+        except Exception as e:
+            logger.warning(f"Local faster-whisper model unavailable, using Cloud Gemini Audio: {e}")
+            return None
     return _whisper_model
 
 class InputProcessorAgent:
