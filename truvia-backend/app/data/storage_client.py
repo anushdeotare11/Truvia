@@ -99,18 +99,18 @@ class StorageClient:
                     folder = "evidence/others"
 
             try:
-                # Generate unique public_id without the extension
-                public_id = os.path.splitext(unique_filename)[0]
+                # Keep extension in public_id so Cloudinary handles format correctly
+                public_id = unique_filename
+                resource_type = "image" if "image" in folder else ("video" if ("audio" in folder or "videos" in folder) else "auto")
                 
                 # Cloudinary uploader takes bytes-like objects via BytesIO
                 file_io = io.BytesIO(file_content)
                 
-                # Upload using auto resource type to handle audio/video/images correctly
                 upload_result = cloudinary.uploader.upload(
                     file_io,
                     public_id=public_id,
                     folder=folder,
-                    resource_type="auto"
+                    resource_type=resource_type
                 )
                 secure_url = upload_result.get("secure_url")
                 if not secure_url:

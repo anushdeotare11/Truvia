@@ -216,7 +216,12 @@ class InputProcessorAgent:
             try:
                 import io
                 import PIL.Image
-                image = PIL.Image.open(io.BytesIO(image_bytes))
+                try:
+                    image_input = PIL.Image.open(io.BytesIO(image_bytes))
+                except Exception:
+                    mime_map = {".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}
+                    mime = mime_map.get(extension.lower(), "image/jpeg")
+                    image_input = {"mime_type": mime, "data": image_bytes}
 
                 prompt = (
                     "Please extract all text content from this screenshot. "
@@ -229,7 +234,7 @@ class InputProcessorAgent:
 
                 response = await asyncio.to_thread(
                     self.client.generate_content,
-                    [image, prompt],
+                    [image_input, prompt],
                     generation_config={"response_mime_type": "application/json"}
                 )
                 
