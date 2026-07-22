@@ -49,7 +49,7 @@ export default function LiveShieldPage() {
   const [caseId, setCaseId] = useState<string | null>(null);
   const listEndRef = useRef<HTMLDivElement>(null);
 
-  const currentScore = turns.length ? turns[turns.length - 1].cumulative_score : 0;
+  const currentScore = turns.length ? (turns[turns.length - 1].cumulative_score ?? 0) : 0;
   const currentBand: SeverityBand =
     (turns.length ? turns[turns.length - 1].severity_band : "low") || "low";
 
@@ -270,16 +270,16 @@ export default function LiveShieldPage() {
                   No turns yet. Add the first thing the other person said to begin scoring.
                 </p>
               ) : (
-                turns.map((t) => (
+                turns.map((t, idx) => (
                   <div
-                    key={t.turn_index}
+                    key={t.turn_index ?? idx}
                     className="flex items-start gap-stack-sm p-stack-md bg-surface-container-lowest border border-outline-variant rounded-lg"
                   >
-                    <span className="font-mono text-[11px] text-on-surface-variant mt-1">#{t.turn_index + 1}</span>
-                    <p className="flex-1 font-body-md text-on-surface">{t.raw_text}</p>
+                    <span className="font-mono text-[11px] text-on-surface-variant mt-1">#{(t.turn_index ?? idx) + 1}</span>
+                    <p className="flex-1 font-body-md text-on-surface">{t.raw_text || (t as any).text}</p>
                     <div className="flex flex-col items-end gap-1">
                       <RiskDot band={t.severity_band} />
-                      <span className="font-mono text-[11px] text-on-surface-variant">risk {t.cumulative_score}</span>
+                      <span className="font-mono text-[11px] text-on-surface-variant">risk {t.cumulative_score ?? 0}</span>
                     </div>
                   </div>
                 ))
@@ -320,10 +320,11 @@ export default function LiveShieldPage() {
               <div style={{ width: "100%", height: 260 }}>
                 <ResponsiveContainer>
                   <LineChart
-                    data={summary.turns.map((t) => ({
-                      turn: t.turn_index + 1,
-                      score: t.cumulative_score,
+                    data={summary.turns.map((t, idx) => ({
+                      turn: (t.turn_index ?? idx) + 1,
+                      score: t.cumulative_score ?? 0,
                     }))}
+
                     margin={{ top: 10, right: 20, bottom: 10, left: -10 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
@@ -339,16 +340,17 @@ export default function LiveShieldPage() {
 
             {/* Turn timeline */}
             <div className="space-y-stack-sm">
-              {summary.turns.map((t) => (
+              {summary.turns.map((t, idx) => (
                 <div
-                  key={t.turn_index}
+                  key={t.turn_index ?? idx}
                   className="flex items-start gap-stack-sm p-stack-sm bg-surface-container-low rounded-lg"
                 >
-                  <span className="font-mono text-[11px] text-on-surface-variant mt-1">#{t.turn_index + 1}</span>
-                  <p className="flex-1 font-body-md text-on-surface text-[13px]">{t.raw_text}</p>
-                  <span className="font-mono text-[11px] text-on-surface-variant">{t.cumulative_score}</span>
+                  <span className="font-mono text-[11px] text-on-surface-variant mt-1">#{(t.turn_index ?? idx) + 1}</span>
+                  <p className="flex-1 font-body-md text-on-surface text-[13px]">{t.raw_text || t.text}</p>
+                  <span className="font-mono text-[11px] text-on-surface-variant">{t.cumulative_score ?? 0}</span>
                 </div>
               ))}
+
             </div>
           </section>
 
@@ -371,7 +373,7 @@ export default function LiveShieldPage() {
 
               <div className="flex flex-col items-center py-stack-md">
                 <RiskGauge
-                  value={summary.session.current_score}
+                  value={summary.session.current_score ?? 0}
                   severity={summary.session.current_severity_band}
                 />
               </div>
@@ -384,7 +386,7 @@ export default function LiveShieldPage() {
                 <div>
                   <p className="font-label-md text-on-surface-variant uppercase text-[10px]">Category</p>
                   <p className="font-headline-sm text-on-surface text-[16px] leading-tight">
-                    {summary.session.scam_category || "Unclassified"}
+                    {String(summary.session.scam_category || "Unclassified")}
                   </p>
                 </div>
               </div>
