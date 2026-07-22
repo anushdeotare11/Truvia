@@ -47,7 +47,7 @@ async def verify_gemini_key_background() -> None:
     try:
         from app.core.genai_helper import configure_genai
         configure_genai(key)
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        model = genai.GenerativeModel("gemini-1.5-flash")
         logger.info("Verifying Google Gemini API key credentials in background...")
         await asyncio.wait_for(
             asyncio.to_thread(
@@ -103,13 +103,13 @@ def get_capability_report() -> Dict[str, Dict[str, object]]:
         },
         "llm_threat_reasoning": {
             "configured": gemini_ok,
-            "provider": "gemini-2.5-flash" if gemini_ok else "local-rule-engine",
+            "provider": "gemini-1.5-flash" if gemini_ok else "local-rule-engine",
             "missing": None if gemini_ok
             else "Set GOOGLE_API_KEY to enable LLM-based structured reasoning (rule engine used meanwhile).",
         },
         "rag_chat_llm": {
             "configured": gemini_ok,
-            "provider": "gemini-2.5-flash" if gemini_ok else "local-grounded-answers",
+            "provider": "gemini-1.5-flash" if gemini_ok else "local-grounded-answers",
             "missing": None if gemini_ok
             else "Set GOOGLE_API_KEY for LLM-composed answers (grounded lexical answers used meanwhile).",
         },

@@ -16,7 +16,7 @@ class InvestigationAgent:
         if self.api_key and "your-google-key" not in self.api_key and len(self.api_key) > 10:
             from app.core.genai_helper import configure_genai
             configure_genai(self.api_key)
-            self.client = genai.GenerativeModel("gemini-2.5-flash")
+            self.client = genai.GenerativeModel("gemini-1.5-flash")
             logger.info("Initialized InvestigationAgent with Google Gemini API")
         else:
             self.client = None
