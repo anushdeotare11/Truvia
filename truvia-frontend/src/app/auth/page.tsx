@@ -7,13 +7,14 @@ import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { useAuth } from "@/lib/auth";
 import { homeForRole } from "@/lib/nav";
-import { ApiError, clearToken } from "@/lib/api";
+import { api, setToken, ApiError } from "@/lib/api";
+import type { User } from "@/lib/types";
 
 type Tab = "login" | "signup";
 type RoleMode = "citizen" | "agency";
 
 export default function AuthPage() {
-  const { user, loading, login, register } = useAuth();
+  const { user, loading, register, refreshUser } = useAuth();
   const router = useRouter();
   const reduceMotion = useReducedMotion();
 
@@ -28,10 +29,12 @@ export default function AuthPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!loading && user && !submitting) {
+      if (roleMode === "agency" && user.role === "citizen") return;
+      if (roleMode === "citizen" && user.role !== "citizen") return;
       router.replace(homeForRole(user.role));
     }
-  }, [loading, user, router]);
+  }, [loading, user, router, roleMode, submitting]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -40,22 +43,32 @@ export default function AuthPage() {
     setSubmitting(true);
     try {
       if (tab === "login") {
-        const me = await login(email.trim(), password);
-        
-        // Strict Role-Tab Mode Check: Block login if user role doesn't match selected tab mode
+        // Step 1: Authenticate with API without setting global token state yet
+        const tokenRes = await api.post<{ access_token: string }>("/auth/login", {
+          email: email.trim(),
+          password,
+        });
+
+        // Step 2: Fetch user profile using the token
+        const me = await fetch("/api/v1/auth/me", {
+          headers: { Authorization: `Bearer ${tokenRes.access_token}` },
+        }).then((r) => r.json() as Promise<User>);
+
+        // Step 3: Strict Role-Tab Check BEFORE persisting login session
         if (roleMode === "agency" && me.role === "citizen") {
-          clearToken();
           setError("Access Denied: This is a Citizen account. Please switch to the Citizen tab to sign in.");
           setSubmitting(false);
           return;
         }
         if (roleMode === "citizen" && me.role !== "citizen") {
-          clearToken();
           setError("Access Denied: This account is registered for Law Enforcement. Please switch to the Law Enforcement tab to sign in.");
           setSubmitting(false);
           return;
         }
 
+        // Step 4: Role matches tab! Persist token and navigate
+        setToken(tokenRes.access_token);
+        await refreshUser();
         router.replace(homeForRole(me.role));
       } else {
         if (roleMode === "agency") {
@@ -66,8 +79,13 @@ export default function AuthPage() {
           return;
         }
         await register({ email: email.trim(), password, name: name.trim(), phone: phone.trim() || undefined });
-        const me = await login(email.trim(), password);
-        router.replace(homeForRole(me.role));
+        const tokenRes = await api.post<{ access_token: string }>("/auth/login", {
+          email: email.trim(),
+          password,
+        });
+        setToken(tokenRes.access_token);
+        await refreshUser();
+        router.replace("/fraud-shield");
       }
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
